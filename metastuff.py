@@ -89,11 +89,12 @@ def extract_headline(doc,url):
             continue
 
 
-        logging.debug(" consider '%s'" % (txt,))
         txt_norm = normalise_text(txt)
 
         if len(txt)>=500:
             continue
+
+        logging.debug(" headline: consider %s '%s'" % (h.tag,txt,))
 
         # TODO: should run all these tests over a real corpus of articles
         # and work out proper probability-based scoring!
@@ -244,18 +245,15 @@ def extract_pubdate(doc, url, headline_linenum):
         txt = u' '.join(txt.split())
 
         # discard anything too short or long
-        if len(txt)<7 or len(txt) > 150:
+        if len(txt)<6 or len(txt) > 150:
             continue
 
-
-        logging.debug(" date: considering %s '%s'" % (e.tag,txt))
 
         score = 1
         dt = extract_date(txt)
         if dt is None:
             continue
-
-        logging.debug(" considering %s '%s'" % (e.tag,txt))
+        logging.debug(" date: considering %s '%s'" % (e.tag,txt))
 
         # TEST: proximity to headline in html
         if headline_linenum>0 and e.sourceline>0:
@@ -342,7 +340,7 @@ def extract_byline(doc, url, headline_linenum):
         if len(txt)<7 or len(txt) > 200:
             continue
 
-        logging.debug(" considering %s '%s'" % (e.tag,txt))
+        logging.debug(" byline: consider %s '%s'" % (e.tag,txt))
 
         score = 0
 
