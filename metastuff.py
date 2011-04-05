@@ -3,6 +3,7 @@ import re
 import sys
 import logging
 import datetime
+import urlparse
 
 import lxml.html
 import lxml.etree
@@ -31,6 +32,17 @@ def normalise_text(txt):
     txt = u' '.join(txt.split())    # compress spaces
     txt = txt.lower().strip()
     return txt
+
+
+def get_slug(url):
+    """ return slug portion of url, or empty string '' """
+    o = urlparse.urlparse(url)
+
+    m = re.compile('((?:[a-zA-Z0-9]+[-_])+[a-zA-Z0-9]+)').findall(url)[-1:]
+    if not m:
+        return ''
+    return m[0]
+
 
 
 
@@ -141,9 +153,19 @@ def extract_headline(doc,url):
                         logging.debug("  contained by meta")
                         score += 1
 
+        # TEST: does it match slug part of url?
+        slug = re.split('[-_]', get_slug(url).lower())
+        parts = [normalise_text(part) for part in txt.split()]
+        parts = [part for part in parts if part!='']
+        if len(parts) > 1:
+            matched = [part for part in parts if part in slug]
+
+            value = (5.0*len(matched) / len(parts)) # max 5 points
+            if value > 0:
+                logging.debug("  match slug (%01f)" % (value,))
+                score += value
 
         # TODO: other possible tests
-        # TEST: does it match slug part of url?
         # TEST: is it near top of article container?
         # TEST: is it just above article container?
         # TEST: is it non-complex html (anything more complex than <a>)
