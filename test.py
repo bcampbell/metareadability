@@ -16,13 +16,19 @@ def tests_from_csv(filename):
     reader = csv.reader(open(filename, 'rb'))
 
     rows = [ row for row in reader ]
-    for row in rows:
-        row[1] = row[1].decode('utf-8')
-        row[2] = row[2].decode('utf-8')
-        if row[3].strip() == '':
-            row[3] = None
-        else:
-            row[3] = dateutil.parser.parse(row[3])
+    n = 1
+    try:
+        for row in rows:
+            row[1] = row[1].decode('utf-8')
+            row[2] = row[2].decode('utf-8')
+            if row[3].strip() == '':
+                row[3] = None
+            else:
+                row[3] = dateutil.parser.parse(row[3])
+            n+=1
+    except:
+        print "error in %s:%d"%(filename,n)
+        raise
     return rows
 
 
