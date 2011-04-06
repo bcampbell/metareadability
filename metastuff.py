@@ -121,6 +121,10 @@ def extract_headline(doc,url):
             logging.debug("  len in [25,40)")
             score += 2
 
+        if h.tag in ('h1','h2','h3','h4'):
+            logging.debug("  significant heading (%s)" % (h.tag,))
+            score +=1
+
         # TEST: does it appear in <title> text?
         title = unicode(getattr(doc.find('.//title'), 'text', ''))
         if title is not None:
@@ -325,6 +329,10 @@ def extract_pubdate(doc, url, headline_linenum):
 
         # other tests:
         # TEST: month and year in url,  eg "http://blah.com/2010/08/blah-blah.html"
+        pat = re.compile("%d[-_/.]?0?%d" % (dt.year,dt.month))
+        if pat.search(url):
+            logging.debug("  year and month appear in url")
+            score += 1
 
         if dt.date() not in candidates or score>candidates[dt.date()]['score']:
             candidates[dt.date()] = {'datetime': dt, 'score': score}
