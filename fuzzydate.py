@@ -1,9 +1,86 @@
 import re
-from datetime import datetime
+import dateutil.tz
 
-# "Wednesday, October 21 2009, 17:46 BST"
 
-# weekdayname, month, dayofmonth, year hour:min timezone
+class fuzzydate:
+    def __init__(self, year=None, month=None, day=None, hour=None, minute=None, second=None, microsecond=None, tzinfo=None):
+        self.year=year
+        self.month=month
+        self.day=day
+        self.hour=hour
+        self.minute=minute
+        self.second=second
+        self.microsecond=microsecond
+        self.tzinfo=tzinfo
+    def empty_date(self):
+        return self.year is None and self.month is None and self.day is None
+    def empty_time(self):
+        return self.hour is None and self.minute is None and self.second is None and self.microsecond is None and self.tzinfo is None
+    def empty(self):
+        return self.empty_date() and self.empty_time()
+    def __repr__(self):
+        return "%s-%s-%s %s:%s:%s %s" %(self.year,self.month,self.day, self.hour,self.minute, self.second, self.tzinfo)
+    @classmethod
+    def combine(cls, *args):
+        fd = fuzzydate()
+        for a in args:
+            fd.year = fd.year if a.year is None else a.year
+            fd.month = fd.month if a.month is None else a.month
+            fd.day = fd.day if a.day is None else a.day
+            fd.hour = fd.hour if a.hour is None else a.hour
+            fd.minute = fd.minute if a.minute is None else a.minute
+            fd.second = fd.second if a.second is None else a.second
+            fd.microsecond = fd.microsecond if a.microsecond is None else a.microsecond
+            fd.tzinfo = fd.tzinfo if a.tzinfo is None else a.tzinfo
+        return fd
+        
+
+# order is important(ish) - want to match as much of the string as we can
+date_crackers = [
+
+    #"Tuesday 16 December 2008"
+    #"Tue 29 Jan 08"
+    #"Monday, 22 October 2007"
+    #"Tuesday, 21st January, 2003"
+    r'(?P<dayname>\w{3,})[,\s]+(?P<day>\d{1,2})(?:st|nd|rd|th)?\s+(?P<month>\w{3,})[,\s]+(?P<year>(\d{4})|(\d{2}))',
+
+    # "Friday    August    11, 2006"
+    # "Tuesday October 14 2008"
+    # "Thursday August 21 2008"
+    r'(?P<dayname>\w{3,})[,\s]+(?P<month>\w{3,})\s+(?P<day>\d{1,2})(?:st|nd|rd|th)?[,\s]+(?P<year>(\d{4})|(\d{2}))',
+
+    # "9 Sep 2009", "09 Sep, 2009", "01 May 10"
+    # "23rd November 2007", "22nd May 2008"
+    r'(?P<day>\d{1,2})(?:st|nd|rd|th)?\s+(?P<month>\w{3,})[,\s]+(?P<year>(\d{4})|(\d{2}))',
+    # "Mar 3, 2007", "Jul 21, 08", "May 25 2010", "May 25th 2010", "February 10 2008"
+    r'(?P<month>\w{3,})\s+(?P<day>\d{1,2})(?:st|nd|rd|th)?[,\s]+(?P<year>(\d{4})|(\d{2}))',
+
+    # "2010-04-02"
+    r'(?P<year>\d{4})-(?P<month>\d{1,2})-(?P<day>\d{1,2})',
+    # "2007/03/18"
+    r'(?P<year>\d{4})/(?P<month>\d{1,2})/(?P<day>\d{1,2})',
+    # "22/02/2008"
+    r'(?P<day>\d{1,2})/(?P<month>\d{1,2})/(?P<year>\d{4})',
+    # "22-02-2008"
+    r'(?P<day>\d{1,2})-(?P<month>\d{1,2})-(?P<year>\d{4})',
+    # "09-Apr-2007", "09-Apr-07"
+    r'(?P<day>\d{1,2})-(?P<month>\w{3,})-(?P<year>(\d{4})|(\d{2}))',
+
+
+    # TODO:
+    # dd/mm/yy
+    # mm/dd/yy
+    # dd.mm.yy
+    # etc...
+    # YYYYMMDD
+
+    # TODO:
+    # year/month only
+
+     # "May 2011"
+    r'(?P<month>\w{3,})\s+(?P<year>\d{4})',
+]
+date_crackers = [re.compile(pat,re.UNICODE|re.IGNORECASE) for pat in date_crackers]
 
 month_lookup = {
     '01': 1, '1':1, 'jan': 1, 'january': 1,
@@ -20,155 +97,152 @@ month_lookup = {
     '12': 12, '12':12, 'dec': 12, 'december': 12 }
 
 
-# various different datetime formats
-datecrackers = [
-    # "2010-04-02T12:35:44+00:00" (iso8601, bbc blogs)
-    re.compile( r"(?P<year>\d{4})-(?P<month>\d\d)-(?P<day>\d\d)T(?P<hour>\d\d):(?P<min>\d\d):(?P<sec>\d\d)", re.UNICODE ),
-    # "2008-03-10 13:21:36 GMT" (technorati api)
-    re.compile( """(?P<year>\d{4})-(?P<month>\d\d)-(?P<day>\d\d)\s+(?P<hour>\d\d):(?P<min>\d\d):(?P<sec>\d\d)""", re.UNICODE ),
-    # "9 Sep 2009 12.33" (heraldscotland blogs)
-    re.compile( r"(?P<day>\d{1,2})\s+(?P<month>\w+)\s+(?P<year>\d{4})\s+(?P<hour>\d{1,2})[.:](?P<min>\d\d)", re.UNICODE ),
-    # "May 25 2010 3:34PM" (thetimes.co.uk)
-    # "Thursday August 21 2008 10:42 am" (guardian blogs in their new cms)
-    re.compile( r'\w+\s+(?P<month>\w+)\s+(?P<day>\d{1,2})\s+(?P<year>\d{4})\s+(?P<hour>\d{1,2}):(?P<min>\d\d)\s*((?P<am>am)|(?P<pm>pm))', re.UNICODE|re.IGNORECASE ),
-    # 'Tuesday October 14 2008 00.01 BST' (Guardian blogs in their new cms)
-    re.compile( r'\w+\s+(?P<month>\w+)\s+(?P<day>\d{1,2})\s+(?P<year>\d{4})\s+(?P<hour>\d{1,2})[:.](?P<min>\d\d)\s+', re.UNICODE|re.IGNORECASE ),
-    # 'Tuesday 16 December 2008 16.23 GMT' (Guardian blogs in their new cms)
-    re.compile( r'\w+\s+(?P<day>\d{1,2})\s+(?P<month>\w+)\s+(?P<year>\d{4})\s+(?P<hour>\d{1,2})[:.](?P<min>\d\d)\s+', re.UNICODE|re.IGNORECASE ),
-    
-    # 3:19pm on Tue 29 Jan 08 (herald blogs)
-    re.compile( """(?P<hour>\d+):(?P<min>\d\d)\s*((?P<am>am)|(?P<pm>pm))\s+(on\s+)?(\w+)\s+(?P<day>\d+)\s+(?P<month>\w+)\s+(?P<year>\d+)""", re.UNICODE|re.IGNORECASE ),
-    # "2007/03/18 10:59:02"
-    re.compile( """(?P<year>\d{4})/(?P<month>\d\d)/(?P<day>\d\d) (?P<hour>\d\d):(?P<min>\d\d):(?P<sec>\d\d)""", re.UNICODE ),
+# "BST" ,"+02:00", "+02"
+tz_pat = r'(?P<tz>Z|[A-Z]{2,10}|(([-+])(\d{2})((:?)(\d{2}))?))'
+ampm_pat = r'(?:(?P<am>am)|(?P<pm>pm))'
 
-    # "Mar 3, 2007 12:00 AM"
-    # "Jul 21, 08 10:00 AM" (mirror blogs)
-    re.compile( """((?P<month>[A-Z]\w{2}) (?P<day>\d+), (?P<year>\d{2,4}) (?P<hour>\d\d):(?P<min>\d\d) ((?P<am>AM)|(?P<pm>PM)))""", re.UNICODE ),
+time_crackers = [
+    #4:48PM GMT
+    r'(?P<hour>\d{1,2})[:.](?P<min>\d{2})(?:[:.](?P<sec>\d{2}))?\s*' + ampm_pat + r'\s*' + tz_pat,
+    #3:34PM
+    #10:42 am
+    r'(?P<hour>\d{1,2})[:.](?P<min>\d{2})(?:[:.](?P<sec>\d{2}))?\s*' + ampm_pat,
+    #13:21:36 GMT
+    #15:29 GMT
+    #12:35:44+00:00
+    #00.01 BST
+    r'(?P<hour>\d{1,2})[:.](?P<min>\d{2})(?:[:.](?P<sec>\d{2}))?\s*' + tz_pat,
+    #12.33
+    #14:21
+    r'(?P<hour>\d{1,2})[:.](?P<min>\d{2})(?:[:.](?P<sec>\d{2}))?\s*',
 
-    # "09-Apr-2007 00:00" (times, sundaytimes)
-    re.compile( """(?P<day>\d\d)-(?P<month>\w+)-(?P<year>\d{4}) (?P<hour>\d\d):(?P<min>\d\d)""", re.UNICODE ),
-
-    # "4:48PM GMT 22/02/2008" (telegraph html articles)
-    re.compile( "(?P<hour>\d{1,2}):(?P<min>\d\d)\s*((?P<am>am)|(?P<pm>pm))\s+GMT\s+(?P<day>\d{1,2})/(?P<month>\d{1,2})/(?P<year>\d{2,4})", re.UNICODE|re.IGNORECASE ),
-
-    # "09-Apr-07 00:00" (scotsman)
-    re.compile( """(?P<day>\d\d)-(?P<month>\w+)-(?P<year>\d{2}) (?P<hour>\d\d):(?P<min>\d\d)""", re.UNICODE ),
-
-    # "Friday    August    11, 2006" (express, guardian/observer)
-    re.compile( """\w+\s+(?P<month>\w+)\s+(?P<day>\d+),?\s*(?P<year>\d{4})""", re.UNICODE ),
-
-    # "26 May 2007, 02:10:36 BST" (newsoftheworld)
-    re.compile( """(?P<day>\d\d) (?P<month>\w+) (?P<year>\d{4}), (?P<hour>\d\d):(?P<min>\d\d):(?P<sec>\d\d) BST""", re.UNICODE ),
-
-    # "2:43pm BST 16/04/2007" (telegraph, after munging)
-    re.compile( "(?P<hour>\d{1,2}):(?P<min>\d\d)\s*((?P<am>am)|(?P<pm>pm))\s+BST\s+(?P<day>\d{1,2})/(?P<month>\d{1,2})/(?P<year>\d{2,4})", re.UNICODE|re.IGNORECASE ),
-
-    # "20:12pm 23rd November 2007" (dailymail)
-    # "2:42 PM on 22nd May 2008" (dailymail)
-    re.compile( r"(?P<hour>\d{1,2}):(?P<min>\d\d)\s*((?P<am>am)|(?P<pm>pm))\s+(?:on\s+)?(?P<day>\d{1,2})\w+\s+(?P<month>\w+)\s+(?P<year>\d{4})", re.UNICODE|re.IGNORECASE),
-    # "February 10 2008 22:05" (ft)
-    re.compile( """(?P<month>\w+)\s+(?P<day>\d+)\s+(?P<year>\d{4})\s+(?P<hour>\d{1,2}):(?P<min>\d\d)""", re.UNICODE ),
+    # TODO: add support for microseconds?
+]
+time_crackers = [re.compile(pat,re.UNICODE|re.IGNORECASE) for pat in time_crackers]
 
 
-    # "22 Oct 2007 (weird non-ascii characters) at(weird non-ascii characters)11:23" (telegraph blogs OLD!)
-#    re.compile( """(?P<day>\d{1,2}) (?P<month>\w+) (?P<year>\d{4}).*?at.*?(?P<hour>\d{1,2}):(?P<min>\d\d)""", re.UNICODE|re.DOTALL ),
-    # 'Feb 2, 2009 at 17:01:09' (telegraph blogs)
-    re.compile( r"(?P<month>\w+)\s+(?P<day>\d{1,2}), (?P<year>\d{4}).*?at.*?(?P<hour>\d\d):(?P<min>\d\d):(?P<sec>\d\d)", re.UNICODE|re.DOTALL ),
- 
-    # "18 Oct 07, 04:50 PM" (BBC blogs)
-    # "02 August 2007  1:21 PM" (Daily Mail blogs)
-    re.compile( """(?P<day>\d{1,2}) (?P<month>\w+) (?P<year>\d{2,4}),?\s+(?P<hour>\d{1,2}):(?P<min>\d\d) ((?P<am>AM)|(?P<pm>PM))?""", re.UNICODE ),
-
-    # 'October 22, 2007  5:31 PM' (old Guardian blogs, ft blogs)
-    re.compile( """((?P<month>\w+)\s+(?P<day>\d+),\s+(?P<year>\d{4})\s+(?P<hour>\d{1,2}):(?P<min>\d\d)\s*((?P<am>AM)|(?P<pm>PM)))""", re.UNICODE|re.IGNORECASE ),
-
-    # 'October 15, 2007' (Times blogs)
-    # 'February 12 2008' (Herald)
-    re.compile( """(?P<month>\w+)\\s+(?P<day>\d+),?\\s+(?P<year>\d{4})""", re.UNICODE ),
-    
-    # 'Monday, 22 October 2007' (Independent blogs, Sun (page date))
-    re.compile( """\w+,\s+(?P<day>\d+)\s+(?P<month>\w+)\s+(?P<year>\d{4})""", re.UNICODE ),
-    
-    # '22 October 2007' (Sky News blogs)
-    # '11 Dec 2007' (Sun (article date))
-    # '12 February 2008' (scotsman)
-    re.compile( """(?P<day>\d+)\s+(?P<month>\w+)\s+(?P<year>\d{4})""", re.UNICODE ),
-    # '03/09/2007' (Sky News blogs, mirror)
-    re.compile( """(?P<day>\d{1,2})/(?P<month>\d{1,2})/(?P<year>\d{4})""", re.UNICODE ),
-
-    #'Tuesday, 21 January, 2003, 15:29 GMT' (historical bbcnews)
-    re.compile( r"(?P<day>\d{1,2})\s+(?P<month>\w+),?\s+(?P<year>\d{4}),?\s+(?P<hour>\d{1,2}):(?P<min>\d\d)", re.UNICODE ),
-    # '2003/01/21 15:29:49' (historical bbcnews (meta tag))
-    re.compile( r"(?P<year>\d{4})/(?P<month>\d{1,2})/(?P<day>\d{1,2})\s+(?P<hour>\d{1,2}):(?P<min>\d\d):(?P<sec>\d\d)", re.UNICODE ),
-    # '2010-07-01'
-    # '2010/07/01'
-    re.compile( """(?P<year>\d{4})[-/](?P<month>\d{1,2})[-/](?P<day>\d{1,2})""", re.UNICODE ),
-
-    ]
-
-
-def parse( datestring, usa_format=False ):
-    """Parse a date string in a variety of formats. Raises an exception if no dice"""
-
-    def GetGroup(m,nm):
-        """cheesy little helper for ParseDateTime()"""
-        try:
-            return m.group( nm )
-        except IndexError:
-            return None
-
-    #DEBUG:
-    #print "DATE: "
-    #print datestring
-    #print "\n"
-
-    if usa_format:
-        # swap day and month if both are numeric
-        datestring = re.sub( r'(\d{1,2})([-/])(\d{1,2})([-/])(\d{2,4})', r'\3\2\1\4\5', datestring )
-
-
-    for c in datecrackers:
-        m = c.search( datestring )
+def parse_date(s):
+    for c in date_crackers:
+        m = c.search(s)
         if not m:
             continue
 
-        #DEBUG:
-        #print "MONTH: "
-        #print m.group( 'month' )
-        #print "\n"
+        g = m.groupdict()
 
-        day = int( m.group( 'day' ) )
-        month = month_lookup.get(m.group('month'),None)
-        if month is None:
+        year,month,day = (None,None,None)
+
+        if 'year' in g:
+            year = int(g['year'])
+            if year < 100:
+                year = year+2000
+
+        if 'month' in g:
+            month = month_lookup.get(g['month'].lower(),None)
+            if month is None:
+                continue    # not a valid month name (or number)
+
+        if 'day' in g:
+            day = int(g['day'])
+            if day<1 or day>31:    # TODO: should take month into account
+                continue
+
+        if year is not None or month is not None or day is not None:
+            return (fuzzydate(year,month,day),m.span())
+
+    return (fuzzydate(),None)
+
+
+
+def parse_time(s):
+    for cracker in time_crackers:
+        m = cracker.search(s)
+        if not m:
             continue
 
-        year = int( m.group( 'year' ) )
-        if year < 100:
-            year = year+2000
+        g = m.groupdict()
 
-        hour = GetGroup(m,'hour')
-        if not hour:
-            return datetime( year,month,day )
-        hour = int( hour )
+        hour,minute,second,microsecond,tzinfo = (None,None,None,None,None)
 
-        # convert to 24 hour time
-        # if no am/pm, assume 24hr
-        if GetGroup(m,'pm') and hour>=1 and hour <=11:
-            hour = hour + 12
-        if GetGroup(m,'am') and hour==12:
-            hour = hour - 12
+        if g.get('hour', None) is not None:
+            hour = int(g['hour'])
 
-        # if hour present, min will be too
-        min = int( m.group( 'min' ) )
+            # convert to 24 hour time
+            # if no am/pm, assume 24hr
+            if g.get('pm',None) is not None and hour>=1 and hour <=11:
+                hour = hour + 12
+            if g.get('am',None) is not None and hour==12:
+                hour = hour - 12
 
-        # sec might be missing
-        sec = GetGroup( m,'sec' )
-        if not sec:
-            return datetime( year,month,day,hour,min )
-        sec = int( sec )
+        if g.get('min', None) is not None:
+            minute = int(g['min'])
 
-        return datetime( year,month,day,hour,min,sec )
+        if g.get('sec', None) is not None:
+            second = int(g['sec'])
 
-    return None
+        if g.get('tz', None) is not None:
+            tzinfo = dateutil.tz.gettz(g['tz'])
 
+
+        if hour is not None or min is not None or sec is not None:
+            return (fuzzydate(hour=hour,minute=minute,second=second,microsecond=microsecond,tzinfo=tzinfo),m.span())
+
+    return (fuzzydate(),None)
+
+
+def parse_datetime(s):
+    # TODO: include ',', 'T', 'at', 'on' between  date and time in the matched span...
+
+    date,datespan = parse_date(s)
+    time,timespan = parse_time(s)
+    fd = fuzzydate.combine(date,time)
+#    print "%s -> %s" % (s,fd)
+    return fd
+
+
+
+# examples from the wild:
+tests = [
+    "2010-04-02T12:35:44+00:00", #(iso8601, bbc blogs)
+    "2008-03-10 13:21:36 GMT", #(technorati api)
+    "9 Sep 2009 12.33", #(heraldscotland blogs)
+    "May 25 2010 3:34PM", #(thetimes.co.uk)
+    "Thursday August 21 2008 10:42 am", #(guardian blogs in their new cms)
+    'Tuesday October 14 2008 00.01 BST', #(Guardian blogs in their new cms)
+    'Tuesday 16 December 2008 16.23 GMT', #(Guardian blogs in their new cms)
+    "3:19pm on Tue 29 Jan 08", #(herald blogs)
+    "2007/03/18 10:59:02",
+    "Mar 3, 2007 12:00 AM",
+    "Jul 21, 08 10:00 AM", #(mirror blogs)
+    "09-Apr-2007 00:00", #(times, sundaytimes)
+    "4:48PM GMT 22/02/2008", #(telegraph html articles)
+    "09-Apr-07 00:00", #(scotsman)
+    "Friday    August    11, 2006", #(express, guardian/observer)
+    "26 May 2007, 02:10:36 BST", #(newsoftheworld)
+    "2:43pm BST 16/04/2007", #(telegraph, after munging)
+    "20:12pm 23rd November 2007", #(dailymail)
+    "2:42 PM on 22nd May 2008", #(dailymail)
+    "February 10 2008 22:05", #(ft)
+    "22 Oct 2007, #(weird non-ascii characters) at(weird non-ascii characters)11:23", #(telegraph blogs OLD!)
+    'Feb 2, 2009 at 17:01:09', #(telegraph blogs)
+    "18 Oct 07, 04:50 PM", #(BBC blogs)
+    "02 August 2007  1:21 PM", #(Daily Mail blogs)
+    'October 22, 2007  5:31 PM', #(old Guardian blogs, ft blogs)
+    'October 15, 2007', #(Times blogs)
+    'February 12 2008', #(Herald)
+    'Monday, 22 October 2007', #(Independent blogs, Sun (page date))
+    '22 October 2007', #(Sky News blogs)
+    '11 Dec 2007', #(Sun (article date))
+    '12 February 2008', #(scotsman)
+    '03/09/2007', #(Sky News blogs, mirror)
+    'Tuesday, 21 January, 2003, 15:29 GMT', #(historical bbcnews)
+    '2003/01/21 15:29:49', #(historical bbcnews (meta tag))
+    '2010-07-01',
+    '2010/07/01',
+    'Feb 20th, 2000',
+    'May 2008',
+    '3:15+10',
+]
+
+#for d in tests:
+#    parse_datetime(d)
 

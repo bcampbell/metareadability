@@ -201,9 +201,19 @@ def extract_headline(doc,url):
 def extract_date(txt):
 
     # try the journalisted parser first
-    dt = fuzzydate.parse(txt)
-    if dt is not None:
-        return dt
+    fd = fuzzydate.parse_datetime(txt)
+    if not fd.empty_date():
+        if fd.day is None:
+            fd.day = 1
+        if fd.empty_time():
+            return datetime.datetime(fd.year,fd.month,fd.day)
+        else:
+            if fd.second is None:
+                fd.second = 0
+            if fd.microsecond is None:
+                fd.microsecond = 0
+            return datetime.datetime(fd.year,fd.month,fd.day,fd.hour,fd.minute,fd.second,fd.microsecond,fd.tzinfo)
+    return None
 
     # dateutil parser in fuzzy mode has an annoying habit of returning
     # current date when no date info can be extracted... probably
