@@ -250,8 +250,8 @@ def extract_pubdate(doc, url, headline_linenum):
 #        logging.debug("  using %s from <meta>" % (d,))
 #        return d
 
-    # if we got this far, start looking through whole page
-    for e in tags(doc,'p','span','div','li','td','h4','h5','h6'):
+    # start looking through whole page
+    for e in tags(doc,'p','span','div','li','td','h4','h5','h6','font'):
         txt = unicode(e.text_content()).strip()
         txt = u' '.join(txt.split())
 
@@ -311,10 +311,11 @@ def extract_pubdate(doc, url, headline_linenum):
             logging.debug("  text indicative of pubdate")
             score += 1
 
-        # other tests:
-        # TEST: month and year in url,  eg "http://blah.com/2010/08/blah-blah.html"
-        pat = re.compile("%d[-_/.]?0?%d" % (dt.year,dt.month))
-        if pat.search(url):
+        # TEST: date appears in url? eg "http://blah.com/blahblah-20100801-blah.html"
+        if re.compile("%d[-_/.]?0?%d[-_/.]?0?%d" % (dt.year,dt.month,dt.day)).search(url):
+            logging.debug("  full date appears in url")
+            score += 2
+        elif re.compile("%d[-_/.]?0?%d" % (dt.year,dt.month)).search(url):
             logging.debug("  year and month appear in url")
             score += 1
 
