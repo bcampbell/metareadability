@@ -276,7 +276,7 @@ def extract_pubdate(doc, url, headline_linenum):
 #        return d
 
     # if we got this far, start looking through whole page
-    for e in tags(doc,'p','span','div','li','td'):
+    for e in tags(doc,'p','span','div','li','td','h4','h5','h6'):
         txt = unicode(e.text_content()).strip()
         txt = u' '.join(txt.split())
 
@@ -293,7 +293,7 @@ def extract_pubdate(doc, url, headline_linenum):
 
         # TEST: proximity to headline in html
         if headline_linenum>0 and e.sourceline>0:
-            dist = headline_linenum - e.sourceline
+            dist = e.sourceline - headline_linenum
             if dist >-5 and dist <10:
                 logging.debug("  near headline")
                 score += 1
