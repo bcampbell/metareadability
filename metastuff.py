@@ -7,7 +7,6 @@ import urlparse
 
 import lxml.html
 import lxml.etree
-import dateutil.parser
 
 import fuzzydate
 
@@ -215,30 +214,6 @@ def extract_date(txt):
             return datetime.datetime(fd.year,fd.month,fd.day,fd.hour,fd.minute,fd.second,fd.microsecond,fd.tzinfo)
     return None
 
-    # dateutil parser in fuzzy mode has an annoying habit of returning
-    # current date when no date info can be extracted... probably
-    # right for most cases, not here, since expect that a lot of what
-    # we search _won't_ contain any date info.
-    MAGIC_1 = datetime.datetime(1600,2,29) # a leap year :-)
-    MAGIC_2 = datetime.datetime(1970,1,1)
-    try:
-        # parse it twice, so we can tell which fields have really changed... (ugh)
-        dt1 = dateutil.parser.parse(txt, fuzzy=True, default=MAGIC_1)
-        dt2 = dateutil.parser.parse(txt, fuzzy=True, default=MAGIC_2)
-        # no year? no month? no deal.
-        if dt1.year != dt2.year or dt1.month != dt2.month:
-#            print "   BAIL '%s'" % (txt)
-            return None
-        # if it's only the day which is unset, then we'll accept it...
-        if dt1.day != dt2.day:
-            dt.day = 1
-
-        return dt1
-    except:
-        pass
-    return None
-
-
 
 
 def extract_pubdate(doc, url, headline_linenum):
@@ -265,10 +240,10 @@ def extract_pubdate(doc, url, headline_linenum):
     for meta in doc.findall('.//meta'):
         n = meta.get('name', meta.get('property', ''))
         if pubdate_pats['metatags'].search(n):
-            try:
-                meta_dates.add( dateutil.parser.parse(meta.get('content','')).date() )
-            except ValueError:
-                pass
+            fuzzy = fuzzydate.parse_datetime(meta.get('content',''))
+            if not fuzzy.empty_date():
+                meta_dates.add(fuzzy.date())
+
 #    if len(meta_dates)==1:
 #        # only one likely-looking <meta> entry - lets go with it
 #        d = list(meta_dates)[0]
@@ -284,7 +259,6 @@ def extract_pubdate(doc, url, headline_linenum):
         if len(txt)<6 or len(txt) > 150:
             continue
 
-
         score = 1
         dt = extract_date(txt)
         if dt is None:
@@ -294,7 +268,7 @@ def extract_pubdate(doc, url, headline_linenum):
         # TEST: proximity to headline in html
         if headline_linenum>0 and e.sourceline>0:
             dist = e.sourceline - headline_linenum
-            if dist >-5 and dist <10:
+            if dist >-10 and dist <25:
                 logging.debug("  near headline")
                 score += 1
 
