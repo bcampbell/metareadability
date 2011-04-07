@@ -83,8 +83,10 @@ date_crackers = [
     r'(?P<day>\d{1,2})-(?P<month>\w{3,})-(?P<year>(\d{4})|(\d{2}))',
 
 
-    # TODO:
     # dd/mm/yy
+    r'(?P<day>\d{1,2})-(?P<month>\d{1,2})-(?P<year>\d{2})',
+
+    # TODO:
     # mm/dd/yy
     # dd.mm.yy
     # etc...
