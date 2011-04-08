@@ -347,7 +347,7 @@ def extract_byline(doc, url, headline_linenum):
     logging.debug("extracting byline")
 
     # TODO: check meta tags
-    for e in tags(doc,'p','span','div','h3','h4','li','td'):
+    for e in tags(doc,'p','span','div','h3','h4','td','a','li'):
         txt = unicode(e.text_content()).strip()
         txt = u' '.join(txt.split())
 
@@ -386,6 +386,7 @@ def extract_byline(doc, url, headline_linenum):
         #   and hrefs look like bio pages?
         # TEST: byline length
         #   statistical check against JL data
+        # TEST: likely-looking title strings in links? title="posts by Fred Bloggs"
 
         if score == 0:
             continue

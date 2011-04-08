@@ -100,8 +100,9 @@ def main():
             skipped += 1
             continue
 
-
         got = metastuff.extract(html,url)
+#        print "got '%s' (expected %s) [ %s ]" %(got[1],expected[1],url)
+#        continue
         logging.debug(got)
 
         if compare_result(got, expected, url):
