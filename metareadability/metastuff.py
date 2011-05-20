@@ -10,12 +10,6 @@ import lxml.etree
 import dateutil.parser
 
 import fuzzydate
-
-#import parsedatetime.parsedatetime as pdt
-
-#from BeautifulSoup import BeautifulSoup, HTMLParseError, UnicodeDammit
-#from BeautifulSoup import UnicodeDammit
-
 from pprint import pprint
 
 def tags( node, *tag_names):
@@ -410,30 +404,4 @@ def extract_byline(doc, url, headline_linenum):
     return out[0][1]['byline']
 
 
-
-
-def main():
-    import urllib2
-    from optparse import OptionParser
-    parser = OptionParser(usage="%prog: [options]")
-    parser.add_option('-v', '--verbose', action='store_true')
-    parser.add_option('-d', '--debug', action='store_true')
-    parser.add_option('-u', '--url', help="only test urls containing URL")
-    (options, args) = parser.parse_args()
-
-    log_level = logging.ERROR
-    if options.debug:
-        log_level = logging.DEBUG
-    elif options.verbose:
-        log_level = logging.INFO
-
-    logging.basicConfig(level=log_level, format='%(message)s')
-
-    for url in args:
-        html = urllib2.urlopen(url).read()
-        headline,byline,pubdate = extract(html,url)
-        print "%s,%s,%s,%s" % (url,headline,byline,pubdate)
-
-if __name__ == '__main__':
-    main()
 

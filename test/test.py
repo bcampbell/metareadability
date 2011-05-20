@@ -10,6 +10,9 @@ import dateutil.parser
 
 from urllib2helpers import CacheHandler
 
+# TODO: turn into a proper test suite
+
+
 
 def tests_from_csv(filename):
     # url, headline, journo/byline, pubdate
