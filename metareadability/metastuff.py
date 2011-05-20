@@ -7,7 +7,6 @@ import urlparse
 
 import lxml.html
 import lxml.etree
-import dateutil.parser
 
 import fuzzydate
 from pprint import pprint
@@ -115,6 +114,10 @@ def extract_headline(doc,url):
             logging.debug("  len in [25,40)")
             score += 2
 
+        if h.tag in ('h1','h2','h3','h4'):
+            logging.debug("  significant heading (%s)" % (h.tag,))
+            score +=1
+
         # TEST: does it appear in <title> text?
         title = unicode(getattr(doc.find('.//title'), 'text', ''))
         if title is not None:
@@ -191,33 +194,19 @@ def extract_headline(doc,url):
 def extract_date(txt):
 
     # try the journalisted parser first
-    dt = fuzzydate.parse(txt)
-    if dt is not None:
-        return dt
-
-    # dateutil parser in fuzzy mode has an annoying habit of returning
-    # current date when no date info can be extracted... probably
-    # right for most cases, not here, since expect that a lot of what
-    # we search _won't_ contain any date info.
-    MAGIC_1 = datetime.datetime(1600,2,29) # a leap year :-)
-    MAGIC_2 = datetime.datetime(1970,1,1)
-    try:
-        # parse it twice, so we can tell which fields have really changed... (ugh)
-        dt1 = dateutil.parser.parse(txt, fuzzy=True, default=MAGIC_1)
-        dt2 = dateutil.parser.parse(txt, fuzzy=True, default=MAGIC_2)
-        # no year? no month? no deal.
-        if dt1.year != dt2.year or dt1.month != dt2.month:
-#            print "   BAIL '%s'" % (txt)
-            return None
-        # if it's only the day which is unset, then we'll accept it...
-        if dt1.day != dt2.day:
-            dt.day = 1
-
-        return dt1
-    except:
-        pass
+    fd = fuzzydate.parse_datetime(txt)
+    if not fd.empty_date():
+        if fd.day is None:
+            fd.day = 1
+        if fd.empty_time():
+            return datetime.datetime(fd.year,fd.month,fd.day)
+        else:
+            if fd.second is None:
+                fd.second = 0
+            if fd.microsecond is None:
+                fd.microsecond = 0
+            return datetime.datetime(fd.year,fd.month,fd.day,fd.hour,fd.minute,fd.second,fd.microsecond,fd.tzinfo)
     return None
-
 
 
 
@@ -245,25 +234,24 @@ def extract_pubdate(doc, url, headline_linenum):
     for meta in doc.findall('.//meta'):
         n = meta.get('name', meta.get('property', ''))
         if pubdate_pats['metatags'].search(n):
-            try:
-                meta_dates.add( dateutil.parser.parse(meta.get('content','')).date() )
-            except ValueError:
-                pass
+            fuzzy = fuzzydate.parse_datetime(meta.get('content',''))
+            if not fuzzy.empty_date():
+                meta_dates.add(fuzzy.date())
+
 #    if len(meta_dates)==1:
 #        # only one likely-looking <meta> entry - lets go with it
 #        d = list(meta_dates)[0]
 #        logging.debug("  using %s from <meta>" % (d,))
 #        return d
 
-    # if we got this far, start looking through whole page
-    for e in tags(doc,'p','span','div','li','td'):
+    # start looking through whole page
+    for e in tags(doc,'p','span','div','li','td','h4','h5','h6','font'):
         txt = unicode(e.text_content()).strip()
         txt = u' '.join(txt.split())
 
         # discard anything too short or long
         if len(txt)<6 or len(txt) > 150:
             continue
-
 
         score = 1
         dt = extract_date(txt)
@@ -273,8 +261,8 @@ def extract_pubdate(doc, url, headline_linenum):
 
         # TEST: proximity to headline in html
         if headline_linenum>0 and e.sourceline>0:
-            dist = headline_linenum - e.sourceline
-            if dist >-5 and dist <10:
+            dist = e.sourceline - headline_linenum
+            if dist >-10 and dist <25:
                 logging.debug("  near headline")
                 score += 1
 
@@ -317,8 +305,13 @@ def extract_pubdate(doc, url, headline_linenum):
             logging.debug("  text indicative of pubdate")
             score += 1
 
-        # other tests:
-        # TEST: month and year in url,  eg "http://blah.com/2010/08/blah-blah.html"
+        # TEST: date appears in url? eg "http://blah.com/blahblah-20100801-blah.html"
+        if re.compile("%d[-_/.]?0?%d[-_/.]?0?%d" % (dt.year,dt.month,dt.day)).search(url):
+            logging.debug("  full date appears in url")
+            score += 2
+        elif re.compile("%d[-_/.]?0?%d" % (dt.year,dt.month)).search(url):
+            logging.debug("  year and month appear in url")
+            score += 1
 
         if dt.date() not in candidates or score>candidates[dt.date()]['score']:
             candidates[dt.date()] = {'datetime': dt, 'score': score}
@@ -348,7 +341,7 @@ def extract_byline(doc, url, headline_linenum):
     logging.debug("extracting byline")
 
     # TODO: check meta tags
-    for e in tags(doc,'p','span','div','h3','h4','li','td'):
+    for e in tags(doc,'p','span','div','h3','h4','td','a','li'):
         txt = unicode(e.text_content()).strip()
         txt = u' '.join(txt.split())
 
@@ -387,6 +380,7 @@ def extract_byline(doc, url, headline_linenum):
         #   and hrefs look like bio pages?
         # TEST: byline length
         #   statistical check against JL data
+        # TEST: likely-looking title strings in links? title="posts by Fred Bloggs"
 
         if score == 0:
             continue
