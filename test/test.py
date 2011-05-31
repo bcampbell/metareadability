@@ -1,6 +1,6 @@
 #!/usr/bin/env python
+
 from datetime import datetime
-import metastuff
 import urllib2
 from optparse import OptionParser
 import logging
@@ -9,6 +9,11 @@ import socket
 import dateutil.parser
 
 from urllib2helpers import CacheHandler
+
+import site
+site.addsitedir("..")
+
+import metareadability
 
 # TODO: turn into a proper test suite
 
@@ -39,7 +44,7 @@ def compare_result(got, expected, url):
 
     errs = []
 
-    norm = metastuff.normalise_text
+    norm = metareadability.metastuff.normalise_text
     #headline
     if got[0] is None or norm(got[0]) != norm(expected[0]):
         errs.append("title: got '%s', expected '%s'" % (got[0],expected[0]))
@@ -48,6 +53,11 @@ def compare_result(got, expected, url):
     b = None if expected[2] is None else expected[2].date()
     if a != b:
         errs.append(" date: got '%s', expected '%s'" % (got[2],expected[2]))
+
+    # byline
+    if got[1] != expected[1]:
+        errs.append(" byline: got '%s', expected '%s'" % (got[1],expected[1]))
+ 
 
     if errs:
         logging.warning("failed %s" % (url,))
@@ -61,7 +71,7 @@ def compare_result(got, expected, url):
 def main():
     parser = OptionParser(usage="%prog: [options]")
     parser.add_option('-v', '--verbose', action='store_true')
-    parser.add_option('-d', '--debug', action='store_true')
+    parser.add_option('-V', '--debug', action='store_true')
     parser.add_option('-u', '--url', help="only test urls containing URL")
     (options, args) = parser.parse_args()
  
@@ -103,7 +113,7 @@ def main():
             skipped += 1
             continue
 
-        got = metastuff.extract(html,url)
+        got = metareadability.extract(html,url)
 #        print "got '%s' (expected %s) [ %s ]" %(got[1],expected[1],url)
 #        continue
         logging.debug(got)
