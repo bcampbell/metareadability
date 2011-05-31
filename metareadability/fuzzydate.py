@@ -252,7 +252,7 @@ class Tests(unittest.TestCase):
         ("20:12pm 23rd November 2007", (2007,11,23,20,12,0)), #(dailymail)
         ("2:42 PM on 22nd May 2008", (2008,5,22,14,42,0)), #(dailymail)
         ("February 10 2008 22:05", (2008,2,10,22,5,0)), #(ft)
-        ("22 Oct 2007, #(weird non-ascii characters) at(weird non-ascii characters)11:23", (2007,10,22,11,23,0)), #(telegraph blogs OLD!)
+#        ("22 Oct 2007, #(weird non-ascii characters) at(weird non-ascii characters)11:23", (2007,10,22,11,23,0)), #(telegraph blogs OLD!)
         ('Feb 2, 2009 at 17:01:09', (2009,2,2,17,1,9)), #(telegraph blogs)
         ("18 Oct 07, 04:50 PM", (2007,10,18,16,50,0)), #(BBC blogs)
         ("02 August 2007  1:21 PM", (2007,8,2,13,21,0)), #(Daily Mail blogs)
@@ -287,7 +287,15 @@ class Tests(unittest.TestCase):
             expected = datetime.datetime(*foo[1], tzinfo=self.utc)
 
             self.assertEqual(got,expected, "'%s': expected '%s', got '%s')" % (foo[0], got, expected))
+
+    def testSpans(self):
+        """ tests to make sure we are precise """
+        got,span = parse_date('blah blah blah wibble foo, may 25th, 2011 some more crap here')
+        self.assertEqual(span,(27,41))
  
+        got,span = parse_date('wibble 25-01-2011 pibble')
+        self.assertEqual(span,(7,17))
+
     def fuzzy_to_dt(self,fuzzy):
         """ helper to munge fuzzy date into full datetime """
         # year/month only is ok
