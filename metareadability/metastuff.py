@@ -60,6 +60,7 @@ byline_pats = { 'metatags': re.compile('',re.I),
 
 
 def extract(html,url):
+    """ """
     logging.debug("*** extracting %s ***" % (url,))
     doc = lxml.html.fromstring(html)
 
@@ -234,8 +235,10 @@ def extract_pubdate(doc, url, headline_linenum):
     for meta in doc.findall('.//meta'):
         n = meta.get('name', meta.get('property', ''))
         if pubdate_pats['metatags'].search(n):
+            logging.debug(" date: consider meta name='%s' content='%s'" % (n,meta.get('content','')))
             fuzzy = fuzzydate.parse_datetime(meta.get('content',''))
             if not fuzzy.empty_date():
+                fuzzy = fuzzydate.fuzzydate.combine(fuzzy,fuzzydate.fuzzydate(day=1))
                 meta_dates.add(fuzzy.date())
 
 #    if len(meta_dates)==1:
@@ -335,6 +338,25 @@ def extract_pubdate(doc, url, headline_linenum):
 
 
 
+def strip_date_cruft(s):
+    d,dspan = fuzzydate.parse_date(s)
+    if dspan is not None:
+        s = s[:dspan[0]] + s[dspan[1]:]
+
+    t,tspan = fuzzydate.parse_time(s)
+    if tspan is not None:
+        s = s[:tspan[0]] + s[tspan[1]:]
+
+    if tspan is not None or dspan is not None:
+        # TODO: strip leftover "on" "at" etc...
+        s = re.compile(r'\b(on|at|published|posted)\b[:]?',re.IGNORECASE).sub('',s)
+
+
+
+
+    return s
+
+
 def extract_byline(doc, url, headline_linenum):
     candidates = {}
 
@@ -344,6 +366,9 @@ def extract_byline(doc, url, headline_linenum):
     for e in tags(doc,'p','span','div','h3','h4','td','a','li'):
         txt = unicode(e.text_content()).strip()
         txt = u' '.join(txt.split())
+
+        # strip out date
+        txt = strip_date_cruft(txt)
 
         # discard anything too short or long
         if len(txt)<7 or len(txt) > 200:
@@ -381,6 +406,8 @@ def extract_byline(doc, url, headline_linenum):
         # TEST: byline length
         #   statistical check against JL data
         # TEST: likely-looking title strings in links? title="posts by Fred Bloggs"
+
+        # TEST: not inside a suspected sidebar
 
         if score == 0:
             continue
