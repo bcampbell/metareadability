@@ -226,8 +226,6 @@ def extract_headline(doc,url):
 
 
 def extract_date(txt):
-
-    # try the journalisted parser first
     fd = fuzzydate.parse_datetime(txt)
     if not fd.empty_date():
         if fd.day is None:

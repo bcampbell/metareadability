@@ -151,6 +151,7 @@ time_crackers = [
     r'(?P<hour>\d{1,2})[:.](?P<min>\d{2})(?:[:.](?P<sec>\d{2}))?\s*' + tz_pat,
     #12.33
     #14:21
+    # TODO: BUG: this'll also pick up time from "30.25.2011"!
     r'(?P<hour>\d{1,2})[:.](?P<min>\d{2})(?:[:.](?P<sec>\d{2}))?\s*',
 
     # TODO: add support for microseconds?
@@ -242,6 +243,10 @@ def parse_datetime(s):
     # TODO: include ',', 'T', 'at', 'on' between  date and time in the matched span...
 
     date,datespan = parse_date(s)
+    if datespan:
+        # just to make sure date doesn't get picked up again as time...
+        s = s[:datespan[0]] + s[datespan[1]:]
+
     time,timespan = parse_time(s)
     fd = fuzzydate.combine(date,time)
 #    print "%s -> %s" % (s,fd)
