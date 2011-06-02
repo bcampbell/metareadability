@@ -40,6 +40,20 @@ def tests_from_csv(filename):
     return rows
 
 
+
+def BYLINE_ONLY_compare_result(got, expected, url):
+    errs = []
+    # byline
+    if got[1] != expected[1]:
+        errs.append(" byline: got '%s', expected '%s'" % (got[1],expected[1]))
+    if errs:
+        logging.warning("failed %s" % (url,))
+        [ logging.warning(" %s"%(err,)) for err in errs ]
+        return False
+    else:
+        logging.debug("matched %s" % (url,))
+        return True
+
 def compare_result(got, expected, url):
 
     errs = []
