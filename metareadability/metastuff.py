@@ -91,7 +91,7 @@ pubdate_pats = { 'metatags': re.compile('date|time',re.I),
     }
 
 byline_pats = { 'metatags': re.compile('',re.I),
-    'classes': re.compile('byline|author|writer',re.I),
+    'classes': re.compile('byline|author|writer|credits',re.I),
     'indicative': re.compile(r'^(by|written by|posted by)\b',re.I),
 }
 
@@ -404,34 +404,44 @@ def uberstrip(s):
 # various things that split up parts of a byline
 byline_split_pat = re.compile(r'\s*(?:[^\w\s]|\b(?:by|and|in|of|written|posted)\b)+\s*',re.DOTALL|re.IGNORECASE)
 
+
 def rate_byline(byline):
     parts = byline_split_pat.split(byline)
-    if len(parts)==0:
-        return 0.0
+    parts = [part.strip() for part in parts if part.strip()]
+    if len(parts)<1 or len(parts)>3:
+        return -2.0
+
+    if re.compile(r'\b(about us|contact us)\b',re.IGNORECASE).search(byline):
+        return -2.0
 
     # indicators of jobtitle
-    jobtitle_pat = re.compile('\b(?:editor|associate|reporter|correspondent|corespondent|director|writer|commentator|nutritionist|presenter|journalist|cameraman|deputy|columnist)\b',re.IGNORECASE)
+    jobtitle_pat = re.compile(r'\b(editor|associate|reporter|correspondent|corespondent|director|writer|commentator|nutritionist|presenter|journalist|cameraman|deputy|columnist)\b',re.IGNORECASE)
 
-    score = 0.0
     for part in parts:
-        name_score = names.rate_name(part)
+        if len(part.split())>5:
+            return 0.0
 
-        
+    score = names.rate_name(parts[0])
+    if len(parts)>1:
+        for part in parts[1:]:
             if jobtitle_pat.search(part):
                 score += 1.0
-        if name_score > 0.0:
-            score += name_score
-        else:
+                break
+            else:
+                score -= 1.0
 
-        if len(part.split())>5:
-            score -= 0.2
-
-
-
-    score = score / len(parts)
     return score
 
 
+
+def is_author_link(a):
+    """ return true if link looks like it could be an author """
+    pat = re.compile(r'[/](profile|about|author|writer|authorinfo)[/]', re.I)
+    href = a.get('href','')
+    if pat.search(href):
+        if names.rate_name(a.text_content()) > 0.1:
+            return True
+    return False
 
 
 
@@ -439,6 +449,15 @@ def extract_byline(doc, url, headline_linenum, pubdate_linenum):
     candidates = {}
 
     logging.debug("extracting byline")
+
+    # check hatom author
+
+    authors = doc.cssselect('.hentry .author .fn')
+    if len(authors)>0:
+        byline = u','.join([unicode(author.text_content()) for author in authors])
+        logging.debug("found hatom author(s): %s" %(byline))
+        return byline
+
 
     # TODO: check meta tags
 
@@ -465,8 +484,6 @@ def extract_byline(doc, url, headline_linenum, pubdate_linenum):
 #        logging.debug("  byline rating: %f" % (byline_rating,))
         score += 1.0*byline_rating
 
-
-
         # TEST: indicative text? ('By ....')
         if byline_pats['indicative'].search(txt):
             logging.debug("  text indicative of byline")
@@ -474,8 +491,6 @@ def extract_byline(doc, url, headline_linenum, pubdate_linenum):
 
         # early out
         if score <= 0.0:
-            if "makiya" in txt.lower():
-                logging.debug(" byline: UHOH: reject %s '%s' (base rating %f)" % (e.tag,txt,byline_rating))
             continue
 
 
@@ -501,22 +516,32 @@ def extract_byline(doc, url, headline_linenum, pubdate_linenum):
                 logging.debug("  near pubdate")
                 score += 1.0
 
+        #TEST is link a tag/category/whatever
+        if e.tag == 'a':
+            rel = e.get('rel')
+            if re.compile(r'\btag\b').search(e.get('rel','')):
+                score -= 1.0
+                logging.debug("  -1 rel-tag")
+            else:
+                blacklist = ('/category/', '/tag/', '/tags/')
+                href = e.get('href','')
+                for b in blacklist:
+                    if b in href:
+                        score -= 1.0
+                        logging.debug("  -1 looks like tag")
+
 
         # TEST: is a link with a likely-looking href?
         if e.tag == 'a':
-            href = e.get('href','')
-            if re.compile(r'\b(profile|about|author|writer)\b').search(href):
-                if names.rate_name(a.text_content()) > 0.1:
-                    logging.debug("  is a likely-looking link")
-                    score += 1.0
+            if is_author_link(e):
+                logging.debug("  is a likely-looking author link")
+                score += 1.0
 
         # TEST: contains a link with a likely-looking href?
         for a in tags(e,'a'):
-            href = a.get('href','')
-            if re.compile(r'\b(profile|about|author|writer)\b').search(href):
-                if names.rate_name(a.text_content()) > 0.1:
-                    logging.debug("  contains likely-looking link")
-                    score += 1.0
+            if is_author_link(a):
+                logging.debug("  contains likely-looking link")
+                score += 1.0
 
         # TODO
         # TEST: looks like a byline?
