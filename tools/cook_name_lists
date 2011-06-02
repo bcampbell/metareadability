@@ -1,0 +1,40 @@
+#!/usr/bin/env python
+
+import urllib2
+import re
+import os
+
+OUTPATH='../metareadability'
+
+def parse_us_census( urls, outfilename ):
+    """ download and parse the names from the 1990 US census, and output one per line """
+    line_pat = re.compile(r'^\s*(\S+)\s+')
+    names = set()
+
+    for url in urls:
+        print("parsing %s" % (url,))
+        fp = urllib2.urlopen(url)
+        for line in fp:
+            if line.startswith('#'):
+                continue
+            m = line_pat.match(line)
+            name = m.group(1).lower()
+            names.add(name)
+
+    print("write %d names to %s" % (len(names), outfilename))
+    out = open(outfilename,"w")
+    for n in sorted(names):
+        out.write(n + "\n")
+    out.close()
+    print("done")
+
+
+
+def main():
+    parse_us_census(("http://www.census.gov/genealogy/names/dist.all.last",), os.path.join(OUTPATH, "lastnames.txt"))
+    parse_us_census(("http://www.census.gov/genealogy/names/dist.male.first",
+        "http://www.census.gov/genealogy/names/dist.female.first"), os.path.join(OUTPATH,"firstnames.txt"))
+
+if __name__ == '__main__':
+    main()
+

@@ -9,6 +9,8 @@ import lxml.html
 import lxml.etree
 
 import fuzzydate
+import names
+
 from pprint import pprint
 
 def tags( node, *tag_names):
@@ -25,6 +27,41 @@ def normalise_text(txt):
     txt = u' '.join(txt.split())    # compress spaces
     txt = txt.lower().strip()
     return txt
+
+
+def render_text(element):
+    """ like element.text_content(), but with tactical use of whitespace """
+
+    inline_tags = ( 'a', 'abbr', 'acronym', 'b', 'basefont', 'bdo', 'big',
+        #'br',
+        'cite', 'code', 'dfn', 'em', 'font', 'i', 'img', 'input',
+        'kbd', 'label', 'q', 's', 'samp', 'select', 'small', 'span',
+        'strike', 'strong', 'sub', 'sup', 'textarea', 'tt', 'u', 'var',
+        'applet', 'button', 'del', 'iframe', 'ins', 'map', 'object',
+        'script' )
+
+    txt = u''
+    if element.text:
+        txt += unicode(element.text)
+        if str(element.tag).lower() not in inline_tags:
+            txt += u"\n"
+
+    for e in element.iterdescendants():
+        #print "%s: '%s' '%s'" % (e.tag,e.text,e.tail)
+        if str(e.tag).lower() in inline_tags:
+            if e.text:
+                txt += unicode(e.text)
+            if e.tail:
+                txt += unicode(e.tail)
+        else:
+            # treat as block element
+            txt += u'\n'
+            if e.text:
+                txt += unicode(e.text) + u"\n"
+            if e.tail:
+                txt += unicode(e.tail) + u"\n"
+    return txt
+
 
 
 def get_slug(url):
@@ -55,7 +92,7 @@ pubdate_pats = { 'metatags': re.compile('date|time',re.I),
 
 byline_pats = { 'metatags': re.compile('',re.I),
     'classes': re.compile('byline|author|writer',re.I),
-    'indicative': re.compile(r'^(by|written by)\b',re.I),
+    'indicative': re.compile(r'^(by|written by|posted by)\b',re.I),
 }
 
 
@@ -74,8 +111,9 @@ def extract(html,url):
         headline_linenum = headline_info['sourceline']
         headline = headline_info['txt']
 
-    byline = extract_byline(doc,url,headline_linenum)
-    pubdate = extract_pubdate(doc,url,headline_linenum)
+    pubdate, pubdate_linenum = extract_pubdate(doc,url,headline_linenum)
+
+    byline = extract_byline(doc,url,headline_linenum, pubdate_linenum)
 
     return headline,byline,pubdate
 
@@ -212,6 +250,7 @@ def extract_date(txt):
 
 
 def extract_pubdate(doc, url, headline_linenum):
+    """ returns date,linenum """
     candidates = {}
 
     logging.debug("extracting pubdate")
@@ -227,7 +266,7 @@ def extract_pubdate(doc, url, headline_linenum):
         if m is not None:
             d = datetime.datetime( int(m.group('year')), int(m.group('month')), int(m.group('day')) )
             logging.debug("  using %s from url" % (d,))
-            return d
+            return d,None
 
 
 
@@ -245,7 +284,7 @@ def extract_pubdate(doc, url, headline_linenum):
 #        # only one likely-looking <meta> entry - lets go with it
 #        d = list(meta_dates)[0]
 #        logging.debug("  using %s from <meta>" % (d,))
-#        return d
+#        return d,None
 
     # start looking through whole page
     for e in tags(doc,'p','span','div','li','td','h4','h5','h6','font'):
@@ -317,17 +356,18 @@ def extract_pubdate(doc, url, headline_linenum):
             score += 1
 
         if dt.date() not in candidates or score>candidates[dt.date()]['score']:
-            candidates[dt.date()] = {'datetime': dt, 'score': score}
+            candidates[dt.date()] = {'datetime': dt, 'score': score, 'sourceline': e.sourceline }
 
 
     if not candidates:
-        return None
+        return None,None
 
     out = sorted(candidates.items(), key=lambda item: item[1]['score'], reverse=True)
 #    print "========="
 #    pprint( out[:5] )
 #    print "========="
-    return out[0][1]['datetime']
+    best = out[0][1]
+    return best['datetime'],best['sourceline']
 
 
 #<meta name="date" content="Tuesday, Mar. 29, 2011" />
@@ -351,52 +391,132 @@ def strip_date_cruft(s):
         # TODO: strip leftover "on" "at" etc...
         s = re.compile(r'\b(on|at|published|posted)\b[:]?',re.IGNORECASE).sub('',s)
 
-
-
-
     return s
 
 
-def extract_byline(doc, url, headline_linenum):
+
+def uberstrip(s):
+    # strip leading/trailing non-alphabetic chars
+    pat = re.compile(r'^[^\w()]*(.*?)[^\w()]*$', re.IGNORECASE|re.UNICODE)
+    return pat.sub(r'\1', s)
+
+
+# various things that split up parts of a byline
+byline_split_pat = re.compile(r'\s*(?:[^\w\s]|\b(?:by|and|in|of|written|posted)\b)+\s*',re.DOTALL|re.IGNORECASE)
+
+def rate_byline(byline):
+    parts = byline_split_pat.split(byline)
+    if len(parts)==0:
+        return 0.0
+
+    # indicators of jobtitle
+    jobtitle_pat = re.compile('\b(?:editor|associate|reporter|correspondent|corespondent|director|writer|commentator|nutritionist|presenter|journalist|cameraman|deputy|columnist)\b',re.IGNORECASE)
+
+    score = 0.0
+    for part in parts:
+        name_score = names.rate_name(part)
+
+        
+            if jobtitle_pat.search(part):
+                score += 1.0
+        if name_score > 0.0:
+            score += name_score
+        else:
+
+        if len(part.split())>5:
+            score -= 0.2
+
+
+
+    score = score / len(parts)
+    return score
+
+
+
+
+
+def extract_byline(doc, url, headline_linenum, pubdate_linenum):
     candidates = {}
 
     logging.debug("extracting byline")
 
     # TODO: check meta tags
-    for e in tags(doc,'p','span','div','h3','h4','td','a','li'):
-        txt = unicode(e.text_content()).strip()
-        txt = u' '.join(txt.split())
 
-        # strip out date
+    for e in tags(doc,'p','span','div','h3','h4','td','a','li','small'):
+        txt = render_text(e).strip()
+
+        # strip out date, compress spaces etc...
         txt = strip_date_cruft(txt)
+        txt = u' '.join(txt.split())
+        txt = uberstrip(txt)
 
         # discard anything too short or long
         if len(txt)<7 or len(txt) > 200:
             continue
 
-        logging.debug(" byline: consider %s '%s'" % (e.tag,txt))
+        score = 0.0
 
-        score = 0
+
+        # TEST: contains names?
+        byline_rating = rate_byline(txt)
+
+        logging.debug(" byline: consider %s '%s' (base rating %f)" % (e.tag,txt,byline_rating))
+
+#        logging.debug("  byline rating: %f" % (byline_rating,))
+        score += 1.0*byline_rating
+
+
 
         # TEST: indicative text? ('By ....')
         if byline_pats['indicative'].search(txt):
             logging.debug("  text indicative of byline")
-            score += 2
+            score += 1.0
+
+        # early out
+        if score <= 0.0:
+            if "makiya" in txt.lower():
+                logging.debug(" byline: UHOH: reject %s '%s' (base rating %f)" % (e.tag,txt,byline_rating))
+            continue
+
 
         # TEST: likely-looking class or id
         if byline_pats['classes'].search(e.get('class','')):
             logging.debug("  likely class")
-            score += 2
+            score += 1.0
         if byline_pats['classes'].search(e.get('id','')):
             logging.debug("  likely id")
-            score += 2
+            score += 1.0
 
         # TEST proximity to headline
         if headline_linenum>0 and e.sourceline>0:
             dist = headline_linenum - e.sourceline
             if dist >-5 and dist <10:
                 logging.debug("  near headline")
-                score += 1
+                score += 1.0
+
+        # TEST proximity to pubdate
+        if pubdate_linenum is not None and e.sourceline>0:
+            dist = pubdate_linenum - e.sourceline
+            if dist >-5 and dist <5:
+                logging.debug("  near pubdate")
+                score += 1.0
+
+
+        # TEST: is a link with a likely-looking href?
+        if e.tag == 'a':
+            href = e.get('href','')
+            if re.compile(r'\b(profile|about|author|writer)\b').search(href):
+                if names.rate_name(a.text_content()) > 0.1:
+                    logging.debug("  is a likely-looking link")
+                    score += 1.0
+
+        # TEST: contains a link with a likely-looking href?
+        for a in tags(e,'a'):
+            href = a.get('href','')
+            if re.compile(r'\b(profile|about|author|writer)\b').search(href):
+                if names.rate_name(a.text_content()) > 0.1:
+                    logging.debug("  contains likely-looking link")
+                    score += 1.0
 
         # TODO
         # TEST: looks like a byline?
@@ -406,11 +526,12 @@ def extract_byline(doc, url, headline_linenum):
         # TEST: byline length
         #   statistical check against JL data
         # TEST: likely-looking title strings in links? title="posts by Fred Bloggs"
-
+        #   extra points if link has likely author class (or hcard?)
         # TEST: not inside a suspected sidebar
 
-        if score == 0:
+        if score < 0.01:
             continue
+        logging.debug("  score: %f" % (score))
 
         if txt not in candidates or score>candidates[txt]['score']:
             candidates[txt] = {'byline': txt, 'score': score}
@@ -423,6 +544,8 @@ def extract_byline(doc, url, headline_linenum):
 #    pprint( out[:5] )
 #    print "========="
     return out[0][1]['byline']
+
+
 
 
 
