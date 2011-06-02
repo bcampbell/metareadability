@@ -1,3 +1,6 @@
+# the beginnings of some code to extract person names from text.
+# pretty noddy at the moment, and very english-centric.
+
 import os
 import re
 
@@ -5,6 +8,7 @@ _lastnames = None
 _firstnames = None
 
 def _read_names(filename):
+    """ helper to load in name lists """
     names = set()
     fp = open(os.path.join(os.path.dirname(os.path.abspath(__file__)), filename), "r")
     for line in fp:
@@ -16,6 +20,8 @@ def _read_names(filename):
 _prettycase_pat = re.compile('^[A-Z][a-z]+$')
 
 def rate_name(name):
+    """ return a score 0-1 indicating the likelyhood that the given text is a persons name """
+
     global _firstnames, _lastnames
     if _firstnames is None:
         _firstnames = _read_names('firstnames.txt')
