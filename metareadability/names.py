@@ -29,8 +29,9 @@ def rate_name(name):
         _lastnames = _read_names('lastnames.txt')
 
     parts = name.split()
-    if len(parts)==0:
+    if len(parts)<2 or len(parts)>5:
         return 0.0
+
     score = 0.0
     if parts[0].lower() in _firstnames:
         score += 1.0
