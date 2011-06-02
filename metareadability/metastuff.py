@@ -29,11 +29,11 @@ def normalise_text(txt):
     return txt
 
 
-def render_text(element):
+def render_text(el):
     """ like element.text_content(), but with tactical use of whitespace """
 
     inline_tags = ( 'a', 'abbr', 'acronym', 'b', 'basefont', 'bdo', 'big',
-        #'br',
+        'br',
         'cite', 'code', 'dfn', 'em', 'font', 'i', 'img', 'input',
         'kbd', 'label', 'q', 's', 'samp', 'select', 'small', 'span',
         'strike', 'strong', 'sub', 'sup', 'textarea', 'tt', 'u', 'var',
@@ -41,25 +41,20 @@ def render_text(element):
         'script' )
 
     txt = u''
-    if element.text:
-        txt += unicode(element.text)
-        if str(element.tag).lower() not in inline_tags:
-            txt += u"\n"
 
-    for e in element.iterdescendants():
-        #print "%s: '%s' '%s'" % (e.tag,e.text,e.tail)
-        if str(e.tag).lower() in inline_tags:
-            if e.text:
-                txt += unicode(e.text)
-            if e.tail:
-                txt += unicode(e.tail)
-        else:
-            # treat as block element
-            txt += u'\n'
-            if e.text:
-                txt += unicode(e.text) + u"\n"
-            if e.tail:
-                txt += unicode(e.tail) + u"\n"
+    tag = str(el.tag).lower()
+    if tag not in inline_tags:
+        txt += u"\n";
+
+    if el.text is not None:
+        txt += unicode(el.text)
+    for child in el.iterchildren():
+        txt += render_text(child)
+        if child.tail is not None:
+            txt += unicode(child.tail)
+
+    if el.tag=='br' or tag not in inline_tags:
+        txt += u"\n";
     return txt
 
 
