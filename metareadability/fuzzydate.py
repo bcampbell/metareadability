@@ -100,9 +100,13 @@ date_crackers = [
     # TODO:
     # year/month only
 
-     # "May 2011"
+    # "May/June 2011" (common for publications) - just use second month
+    r'(?P<cruftmonth>\w{3,})/(?P<month>\w{3,})\s+(?P<year>\d{4})',
+
+    # "May 2011"
     r'(?P<month>\w{3,})\s+(?P<year>\d{4})',
 ]
+
 date_crackers = [re.compile(pat,re.UNICODE|re.IGNORECASE) for pat in date_crackers]
 
 month_lookup = {
@@ -163,6 +167,14 @@ def parse_date(s):
             month = month_lookup.get(g['month'].lower(),None)
             if month is None:
                 continue    # not a valid month name (or number)
+
+            # special case to handle "Jan/Feb 2010"...
+            # we'll make sure the first month is valid, then ignore it
+            if 'cruftmonth' in g:
+                cruftmonth = month_lookup.get(g['month'].lower(),None)
+                if cruftmonth is None:
+                    continue    # not a valid month name (or number)
+
 
         if 'day' in g:
             day = int(g['day'])
