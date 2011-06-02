@@ -58,13 +58,13 @@ date_crackers = [
     #"Tue 29 Jan 08"
     #"Monday, 22 October 2007"
     #"Tuesday, 21st January, 2003"
-    #"Monday, May. 17, 2010"
     r'(?P<dayname>\w{3,})[.,\s]+(?P<day>\d{1,2})(?:st|nd|rd|th)?\s+(?P<month>\w{3,})[.,\s]+(?P<year>(\d{4})|(\d{2}))',
 
     # "Friday    August    11, 2006"
     # "Tuesday October 14 2008"
     # "Thursday August 21 2008"
-    r'(?P<dayname>\w{3,})[.,\s]+(?P<month>\w{3,})\s+(?P<day>\d{1,2})(?:st|nd|rd|th)?[.,\s]+(?P<year>(\d{4})|(\d{2}))',
+    #"Monday, May. 17, 2010"
+    r'(?P<dayname>\w{3,})[.,\s]+(?P<month>\w{3,})[.,\s]+(?P<day>\d{1,2})(?:st|nd|rd|th)?[.,\s]+(?P<year>(\d{4})|(\d{2}))',
 
     # "9 Sep 2009", "09 Sep, 2009", "01 May 10"
     # "23rd November 2007", "22nd May 2008"
@@ -108,6 +108,16 @@ date_crackers = [
 ]
 
 date_crackers = [re.compile(pat,re.UNICODE|re.IGNORECASE) for pat in date_crackers]
+
+dayname_lookup = {
+    'mon': 'mon', 'monday': 'mon',
+    'tue': 'tue', 'tuesday': 'tue',
+    'wed': 'wed', 'wednesday': 'wed',
+    'thu': 'thu', 'thursday': 'thu',
+    'fri': 'fri', 'friday': 'fri',
+    'sat': 'sat', 'saturday': 'sat',
+    'sun': 'sun', 'sunday': 'sun' }
+
 
 month_lookup = {
     '01': 1, '1':1, 'jan': 1, 'january': 1,
@@ -175,6 +185,10 @@ def parse_date(s):
                 if cruftmonth is None:
                     continue    # not a valid month name (or number)
 
+        if 'dayname' in g:
+            dayname = dayname_lookup.get(g['dayname'].lower(),None)
+            if dayname is None:
+                continue
 
         if 'day' in g:
             day = int(g['day'])
