@@ -42,8 +42,22 @@ def contains(container, el):
         el = parent
 
 
+def rate_byline_text(txt):
+    byline_forms = [re.compile(r"\s*(?:by|by:|posted by|written by|von)\s+(?P<name>\w+\s+\w+)\s*,\s*(?P<organisation>[\s\w]+)", re.IGNORECASE|re.UNICODE)]
+
+    for pat in byline_forms:
+        m = pat.match(txt)
+        if m is None:
+            continue
+        if m.group('name') is not None:
+            name_score = names.rate_name(m.group('name'))
+            if name_score <= 0.0:
+                continue
+            return name_score
+
+    return 0.0
+
 def extract(doc, url, headline_node, pubdate_node):
-    candidates = {}
 
     logging.debug("EXTRACTING BYLINE")
 
@@ -57,107 +71,149 @@ def extract(doc, url, headline_node, pubdate_node):
 
     # TODO: specialcase rel-author and rel-me? Are they used in the wild yet?
 
-    # look for links only
+    # first pass: look for author links
+    candidates = {}
     for a in util.tags(doc,'a'):
-        score = 0.0
-        name = unicode(a.text_content())
-        name = util.strip_date(name).strip()
-        url = a.get('href','')
-        rel = a.get('rel','')
-
-        # TEST: rate nameiness of name
-        name_score = names.rate_name(name)
-        if name_score < 0.0:
-            continue;   # early out
-        logging.debug(" byline: consider link '%s'" %(name,))
-        score += name_score
-        logging.debug("  name score: %.3f" % (name_score,))
-
-        # TEST: likely url?
-        if _pats['good_url'].search(url):
-            score += 1.0
-            logging.debug("  likely-looking url")
-        # TEST: unlikely url?
-        if _pats['bad_url'].search(url):
-            score -= 1.0
-            logging.debug("  -1 unlikely-looking url")
-
-        # TEST: recognised rel- pattern?
-        if _pats['good_rel'].search(rel):
-            score += 2.0
-            logging.debug("  likely-looking rel")
-
-        # TEST: unwanted rel- pattern?
-        if _pats['bad_rel'].search(rel):
-            score += 2.0
-            logging.debug("  -2 unlikely-looking rel")
-
-
-        # TEST: likely-looking class or id
-        if _pats['classes'].search(a.get('class','')):
-            logging.debug("  likely class")
-            score += 1.0
-        if _pats['classes'].search(a.get('id','')):
-            logging.debug("  likely id")
-            score += 1.0
-        # TEST: parent has likely-looking class or id
-        parent = a.getparent()
-        if _pats['classes'].search(parent.get('class','')):
-            logging.debug("  parent has likely class")
-            score += 1.0
-        if _pats['classes'].search(parent.get('id','')):
-            logging.debug("  parent has likely id")
-            score += 1.0
-
-        # TEST: proximity to headline
-        if headline_node is not None:
-            dist = a.sourceline - headline_node.sourceline
-            if dist >-5 and dist <15:
-                logging.debug("  near headline")
-                score += 0.5
-
-            container = headline_node.getparent()
-            if(contains(container,a)):
-                logging.debug("  inside same container as headline")
-                score += 1.0
-
-
-
-        # TEST: proximity to pubdate
-        if pubdate_node is not None:
-            dist = a.sourceline - pubdate_node.sourceline
-            if dist >-5 and dist <10:
-                logging.debug("  near pubdate")
-                score += 0.5
-
-        # TEST: in sidebar/footer?
-        up = a.getparent()
-        while(up is not None):
-            if _pats['structural_cruft'].search(up.get('id','')):
-                logging.debug("  -1 inside structural cruft (id: '%s')" % (up.get('id'),))
-                score -= 1.0
-                break
-            if _pats['structural_cruft'].search(up.get('class','')):
-                logging.debug("  -1 inside structural cruft (class: '%s')" %(up.get('class'),))
-                score -= 1.0
-                break
-            up = up.getparent()
-
-
-        # TODO TEST: preceeded by indicative text? ('By ....')
-
+        score = rate_author_link(a, headline_node, pubdate_node)
         # only consider significant ones...
         if score > 1.0:
+            name = unicode(a.text_content())
+            url = a.get('href','')
             candidates[a] = {'element':a, 'score': score, 'name': name, 'url': url}
 
-    if not candidates:
-        return None
+    if candidates:
+        results = sorted(candidates.values(), key=lambda item: item['score'], reverse=True)
 
-    results = sorted(candidates.values(), key=lambda item: item['score'], reverse=True)
+        logging.debug( " byline rankings:")
+        for r in results:
+            logging.debug("  %.3f: %s (%s)" % (r['score'], r['name'], r['url']))
+        return unicode(results[0]['name'])
 
-    logging.debug( " byline rankings:")
-    for r in results:
-        logging.debug("  %.3f: %s (%s)" % (r['score'], r['name'], r['url']))
+    # second pass: look for obvious byline text
+    candidates = {}
+    for el in util.tags(doc, 'p','span','div','li','h3','h4','h5','h6','td'):
+        txt = util.render_text(el)
+        txt = util.strip_date(txt)  # date often in same element as byline
+        txt = txt.strip()
 
-    return results[0]['name']
+        score = 0.0
+        bylineness = rate_byline_text(txt)
+        if not bylineness>0.0:
+            continue
+
+        logging.debug( " byline: consider '%s'"%(txt,))
+        logging.debug( "  base score %.3f"%(bylineness,))
+
+        score += rate_misc(el, headline_node, pubdate_node)
+
+        if score > 0.5:
+            candidates[a] = {'element':el, 'score': score, 'raw_byline': txt}
+
+    if candidates:
+        results = sorted(candidates.values(), key=lambda item: item['score'], reverse=True)
+        logging.debug( " byline rankings:")
+        for r in results:
+            logging.debug("  %.3f: '%s'" % (r['score'], r['raw_byline']))
+        return unicode(results[0]['raw_byline'])
+
+    return None
+
+
+def rate_misc(el, headline_node, pubdate_node):
+    """ misc byline tests that apply to both links and random text """
+    score = 0.0
+
+    # TEST: likely-looking class or id
+    if _pats['classes'].search(el.get('class','')):
+        logging.debug("  likely class")
+        score += 1.0
+    if _pats['classes'].search(el.get('id','')):
+        logging.debug("  likely id")
+        score += 1.0
+
+    # TEST: parent has likely-looking class or id
+    parent = el.getparent()
+    if _pats['classes'].search(parent.get('class','')):
+        logging.debug("  parent has likely class")
+        score += 1.0
+    if _pats['classes'].search(parent.get('id','')):
+        logging.debug("  parent has likely id")
+        score += 1.0
+
+    # TEST: proximity to headline
+    if headline_node is not None:
+        dist = el.sourceline - headline_node.sourceline
+        if dist >-5 and dist <15:
+            logging.debug("  near headline")
+            score += 0.5
+
+        container = headline_node.getparent()
+        if(contains(container,el)):
+            logging.debug("  inside same container as headline")
+            score += 1.0
+
+    # TEST: proximity to pubdate
+    if pubdate_node is not None:
+        dist = el.sourceline - pubdate_node.sourceline
+        if dist >-5 and dist <10:
+            logging.debug("  near pubdate")
+            score += 0.5
+
+    return score
+
+
+
+def rate_author_link(a, headline_node, pubdate_node):
+    score = 0.0
+    name = unicode(a.text_content())
+    name = util.strip_date(name).strip()
+    url = a.get('href','')
+    rel = a.get('rel','')
+
+    # TEST: rate nameiness of name
+    name_score = names.rate_name(name)
+    if name_score < 0.0:
+        return 0.0  # early out
+
+    logging.debug(" byline: consider link '%s'" %(name,))
+    score += name_score
+    logging.debug("  name score: %.3f" % (name_score,))
+
+    # TEST: likely url?
+    if _pats['good_url'].search(url):
+        score += 1.0
+        logging.debug("  likely-looking url")
+    # TEST: unlikely url?
+    if _pats['bad_url'].search(url):
+        score -= 1.0
+        logging.debug("  -1 unlikely-looking url")
+
+    # TEST: recognised rel- pattern?
+    if _pats['good_rel'].search(rel):
+        score += 2.0
+        logging.debug("  likely-looking rel")
+
+    # TEST: unwanted rel- pattern?
+    if _pats['bad_rel'].search(rel):
+        score += 2.0
+        logging.debug("  -2 unlikely-looking rel")
+
+    score += rate_misc(a, headline_node, pubdate_node)
+
+    # TEST: in sidebar/footer?
+    up = a.getparent()
+    while(up is not None):
+        if _pats['structural_cruft'].search(up.get('id','')):
+            logging.debug("  -1 inside structural cruft (id: '%s')" % (up.get('id'),))
+            score -= 1.0
+            break
+        if _pats['structural_cruft'].search(up.get('class','')):
+            logging.debug("  -1 inside structural cruft (class: '%s')" %(up.get('class'),))
+            score -= 1.0
+            break
+        up = up.getparent()
+    # TODO TEST: preceeded by indicative text? ('By ....')
+
+    return score
+
 
