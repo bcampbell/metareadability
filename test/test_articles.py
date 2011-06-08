@@ -58,7 +58,7 @@ def compare_result(got, expected, url):
 
     errs = []
 
-    norm = metareadability.metastuff.normalise_text
+    norm = metareadability.util.normalise_text
     #headline
     if got[0] is None or norm(got[0]) != norm(expected[0]):
         errs.append("title: got '%s', expected '%s'" % (got[0],expected[0]))
@@ -69,8 +69,9 @@ def compare_result(got, expected, url):
         errs.append(" date: got '%s', expected '%s'" % (got[2],expected[2]))
 
     # byline
-    if got[1] != expected[1]:
-        errs.append(" byline: got '%s', expected '%s'" % (got[1],expected[1]))
+    byline = got[1] if got[1] is not None else u''
+    if byline != expected[1]:
+        errs.append(" byline: got '%s', expected '%s'" % (byline,expected[1]))
  
 
     if errs:
@@ -87,6 +88,7 @@ def main():
     parser.add_option('-v', '--verbose', action='store_true')
     parser.add_option('-V', '--debug', action='store_true')
     parser.add_option('-u', '--url', help="only test urls containing URL")
+    parser.add_option('-i', '--inputfile', help="inputfile (csv)", default="basic_tests.csv")
     (options, args) = parser.parse_args()
  
     log_level = logging.ERROR
@@ -101,7 +103,7 @@ def main():
     urllib2.install_opener(opener)
     socket.setdefaulttimeout(5)
 
-    test_data = tests_from_csv('./basic_tests.csv')
+    test_data = tests_from_csv(options.inputfile)
 
 
     good = 0

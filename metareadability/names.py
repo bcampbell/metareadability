@@ -20,7 +20,11 @@ def _read_names(filename):
 _prettycase_pat = re.compile('^[A-Z][a-z]+$')
 
 def rate_name(name):
-    """ return a score 0-1 indicating the likelyhood that the given text is a persons name """
+    """ return a score [-1..1] indicating the likelyhood that the given text is a persons name
+    
+    1 = certain it is
+    -1 = certain it isn't
+    """
 
     global _firstnames, _lastnames
     if _firstnames is None:
@@ -28,9 +32,15 @@ def rate_name(name):
     if _lastnames is None:
         _lastnames = _read_names('lastnames.txt')
 
+    name = name.strip()
+    if name == u'':
+        return -1.0
+
     parts = name.split()
-    if len(parts)<2 or len(parts)>5:
+    if len(parts)<2:
         return 0.0
+    if len(parts)>5:
+        return -1.0
 
     score = 0.0
     if parts[0].lower() in _firstnames:
