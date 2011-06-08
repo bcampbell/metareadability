@@ -5,7 +5,7 @@ import site
 import lxml.html
 site.addsitedir("..")
 
-from metareadability.metastuff import render_text
+from metareadability.util import render_text
 
 
 class TestMiscFunctions(unittest.TestCase):
