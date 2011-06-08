@@ -60,7 +60,8 @@ def extract(doc, url, headline_node, pubdate_node):
     # look for links only
     for a in util.tags(doc,'a'):
         score = 0.0
-        name = unicode(a.text_content()).strip()
+        name = unicode(a.text_content())
+        name = util.strip_date(name).strip()
         url = a.get('href','')
         rel = a.get('rel','')
 
