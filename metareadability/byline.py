@@ -25,6 +25,7 @@ _pats = {
     # TODO: support xfn rel-me?
     'good_rel': re.compile(r'\bauthor\b',re.I),
     'bad_rel': re.compile(r'\btag\b',re.I),
+    'bad_title_attr': re.compile(r'^more on ',re.I),
     'classes': re.compile('byline|author|writer|credits',re.I),
     'structural_cruft': re.compile(r'^(sidebar|footer)$',re.I),
 }
@@ -42,20 +43,24 @@ def contains(container, el):
         el = parent
 
 
-def rate_byline_text(txt):
-    byline_forms = [re.compile(r"\s*(?:by|by:|posted by|written by|von)\s+(?P<name>\w+\s+\w+)\s*,\s*(?P<organisation>[\s\w]+)", re.IGNORECASE|re.UNICODE)]
+def intervening(el_from, el_to, all):
+    """ returns list of elements between el_from and el_to, in document order """
+    pos1=None
+    pos2=None
+    for i,x in enumerate(all):
+        if x==el_from:
+            pos1 = i
+        if x==el_to:
+            pos2 = i
 
-    for pat in byline_forms:
-        m = pat.match(txt)
-        if m is None:
-            continue
-        if m.group('name') is not None:
-            name_score = names.rate_name(m.group('name'))
-            if name_score <= 0.0:
-                continue
-            return name_score
+    assert(pos1 is not None and pos2 is not None)
 
-    return 0.0
+    if pos2>pos1:
+        return all[pos1+1:pos2]
+    else:
+        return None
+
+
 
 def extract(doc, url, headline_node, pubdate_node):
 
@@ -71,114 +76,231 @@ def extract(doc, url, headline_node, pubdate_node):
 
     # TODO: specialcase rel-author and rel-me? Are they used in the wild yet?
 
-    # first pass: look for author links
+    all = doc.iter()
+
     candidates = {}
-    for a in util.tags(doc,'a'):
-        score = rate_author_link(a, headline_node, pubdate_node)
-        # only consider significant ones...
-        if score > 1.0:
-            name = unicode(a.text_content())
-            url = a.get('href','')
-            candidates[a] = {'element':a, 'score': score, 'name': name, 'url': url}
-
-    if candidates:
-        results = sorted(candidates.values(), key=lambda item: item['score'], reverse=True)
-
-        logging.debug( " byline EARLY OUT - found suitable link(s)")
-        logging.debug( " byline rankings:")
-        for r in results:
-            logging.debug("  %.3f: %s (%s)" % (r['score'], r['name'], r['url']))
-        return unicode(results[0]['name'])
-
-    # second pass: look for obvious byline text
-    candidates = {}
-    for el in util.tags(doc, 'p','span','div','li','h3','h4','h5','h6','td'):
-        txt = util.render_text(el)
-        txt = util.strip_date(txt)  # date often in same element as byline
-        txt = txt.strip()
-
-        score = 0.0
-        bylineness = rate_byline_text(txt)
-        if not bylineness>0.0:
+    for el in util.tags(doc, 'a','p','span','div','li','h3','h4','h5','h6','td'):
+        txt = util.render_text(el).strip()
+        if len(txt) > 200:
             continue
 
-        logging.debug( " byline: consider '%s'"%(txt,))
-        logging.debug( "  base score %.3f"%(bylineness,))
 
-        score += rate_misc(el, headline_node, pubdate_node)
+        logging.debug("byline: consider '%s'",(txt[:75]))
+        parts = tokenise_byline(el)
+        authors, score = parse_byline_parts(parts)
 
-        if score > 0.5:
-            candidates[a] = {'element':el, 'score': score, 'raw_byline': txt}
+        if el.tag == 'a':
+            logging.debug("LINK");
+            score += eval_author_link(el)
+
+        # TEST: likely-looking class or id
+        if _pats['classes'].search(el.get('class','')):
+            logging.debug("  +1 likely class")
+            score += 1.0
+        if _pats['classes'].search(el.get('id','')):
+            logging.debug("  +1 likely id")
+            score += 1.0
+
+        if score>1.5:
+            candidates[el] = {'element':el, 'score': score, 'raw_byline': txt}
 
     if candidates:
         results = sorted(candidates.values(), key=lambda item: item['score'], reverse=True)
-        logging.debug( " byline rankings:")
-        for r in results:
+        logging.debug( " byline rankings (top 10):")
+        for r in results[:10]:
             logging.debug("  %.3f: '%s'" % (r['score'], r['raw_byline']))
         return unicode(results[0]['raw_byline'])
 
     return None
 
 
-def rate_misc(el, headline_node, pubdate_node):
-    """ misc byline tests that apply to both links and random text """
+
+indicative_pat = re.compile(r'^\s*(by|posted by|written by|von)\s*',re.IGNORECASE)
+
+def tokenise_byline(el):
+    parts = []
+
+    # split into parts based on html structure
+    if el.text:
+        parts.append((unicode(el.text),None))
+    for child in el:
+        parts.append((unicode(child.text_content()),child))
+        if child.tail:
+            parts.append((unicode(child.tail),None))
+
+    # strip out any dates (often mashed in with byline)
+    parts = [(util.strip_date(txt),e) for txt,e in parts]
+
+    # now split up raw text parts by and/in/, etc...
+    parts2 = []
+    for part in parts:
+        fragments = re.compile(r'((?:\band\b)|(?:\bin\b)|(?:\s+-\s+)|[,|])',re.IGNORECASE).split(part[0])
+        parts2.append((fragments[0],part[1]))
+        for frag in fragments[1:]:
+            parts2.append((frag,part[1]))
+
+    parts3 = []
+    for part in parts2:
+        for frag in indicative_pat.split(part[0]):
+            parts3.append((frag,part[1]))
+
+    # clean up
+    parts3 = [(s.strip(),e) for s,e in parts3]
+    parts3 = [(s,e) for s,e in parts3 if s!=u'']
+
+    return parts3
+
+
+def parse_byline_parts(parts):
+    authors = []
+
+    expect_person = True
+    byline_score = 0.0
+    i=0
+    while i < len(parts):
+        txt,el = parts[i]
+
+        if len(txt.split())>=5:
+            byline_score -= 2.0
+            break
+
+        i+=1
+
+        if txt.lower() in ('-',',','|'):
+            continue
+
+        if i==1 and indicative_pat.match(txt):
+            # starts with "by" or similar.  yay.
+            byline_score += 1.0
+            continue
+        if txt.lower()=='and':
+            expect_person = True
+            continue
+        author_score = rate_author(txt,el)
+        if expect_person:
+            expect_person = False
+            author_score += 0.5
+
+        jobtitle_score = rate_job_title(txt)
+        publication_score = rate_publication(txt)
+        location_score = rate_publication(txt)
+
+        # now decide if it's a person or not...
+        person = False
+        if len(authors) == 0:
+            person = True
+
+        author_threshold = 0.0
+        if jobtitle_score > 0.0 or publication_score > 0.0 or location_score > 0.0:
+            person = False
+        else:
+            if author_score > 0.0:
+                person = True
+
+        if len(authors) == 0:
+            person = True
+
+        if person:
+            url = None
+            if el is not None and el.tag=='a':
+                url = el.get('href',None)
+            authors.append({'name':txt, 'score':author_score, 'url':url, 'extra':[] })
+        else:
+            authors[-1]['score'] += jobtitle_score + publication_score + location_score
+            authors[-1]['extra'].append(txt)
+
+
+    # mark down anything
+    for author in authors:
+        n = len(author['extra'])
+        if n>2:
+            author['score'] -= n
+
+    for author in authors:
+        byline_score += author['score']
+
+    return authors,byline_score
+
+
+def rate_author(txt,el):
+    author_score = names.rate_name(txt)
+    if el is not None and el.tag=='a':
+        author_score += eval_author_link(el)
+    return author_score
+
+
+# TODO: split out into data file
+jobtitle_pats = [
+    re.compile( """associate editor""", re.IGNORECASE|re.UNICODE ),
+
+    re.compile( """editor$""", re.IGNORECASE|re.UNICODE ),
+    re.compile( """reporter$""", re.IGNORECASE|re.UNICODE ),
+    re.compile( """correspondent$""", re.IGNORECASE|re.UNICODE ),
+    re.compile( """corespondent$""", re.IGNORECASE|re.UNICODE ),
+    re.compile( """director$""", re.IGNORECASE|re.UNICODE ),
+    re.compile( """writer$""", re.IGNORECASE|re.UNICODE ),
+    re.compile( """commentator$""", re.IGNORECASE|re.UNICODE ),
+    re.compile( """nutritionist""", re.IGNORECASE|re.UNICODE ),
+
+    re.compile( """presenter""", re.IGNORECASE|re.UNICODE ),
+    re.compile( """online journalist""", re.IGNORECASE|re.UNICODE ),
+    re.compile( """journalist""", re.IGNORECASE|re.UNICODE ),
+    re.compile( """cameraman""", re.IGNORECASE|re.UNICODE ),
+    re.compile( r'\bdeputy\b', re.IGNORECASE|re.UNICODE ),
+    re.compile( r'\bhead\b', re.IGNORECASE|re.UNICODE ),
+    re.compile( """columnist""", re.IGNORECASE|re.UNICODE ),
+    ]
+
+def rate_job_title(txt):
+    for pat in jobtitle_pats:
+        if pat.search(txt):
+            return 1.0
+    return 0.0
+
+# TODO: split out into data file
+publication_pats = [
+    re.compile( r'\b(?:mail|sunday|press|bbc|mirror|telegraph|agencies|agences|express|reuters|afp|news|online|herald|guardian|times)\b', re.IGNORECASE ),
+    re.compile( """the mail on sunday""", re.IGNORECASE|re.UNICODE ),
+    re.compile( """the times""", re.IGNORECASE|re.UNICODE ),
+    re.compile( """associated press""", re.IGNORECASE|re.UNICODE ),
+    re.compile( """press association""", re.IGNORECASE|re.UNICODE ),
+    re.compile( """\\bap\\b""", re.IGNORECASE|re.UNICODE ),
+    re.compile( """\\bpa\\b""", re.IGNORECASE|re.UNICODE ),
+    re.compile( """bbc news""", re.IGNORECASE|re.UNICODE ),
+    re.compile( """bbc scotland""", re.IGNORECASE|re.UNICODE ),
+    re.compile( """bbc wales""", re.IGNORECASE|re.UNICODE ),
+    re.compile( """sunday telegraph""", re.IGNORECASE|re.UNICODE ),
+    re.compile( """\\bmirror[.]co[.]uk\\b""", re.IGNORECASE|re.UNICODE ),
+    re.compile( """\\bagencies\\b""", re.IGNORECASE|re.UNICODE ),
+    re.compile( """\\bagences\\b""", re.IGNORECASE|re.UNICODE ),
+    re.compile( """\\bexpress.co.uk\\b""", re.IGNORECASE|re.UNICODE ),
+    
+    re.compile( """\\breuters\\b""", re.IGNORECASE|re.UNICODE ),
+    re.compile( """\\bafp\\b""", re.IGNORECASE|re.UNICODE ),
+    re.compile( """sky news online""", re.IGNORECASE|re.UNICODE ),  # gtb
+    re.compile( """sky news""", re.IGNORECASE|re.UNICODE ), # gtb
+    re.compile( """sky""", re.IGNORECASE|re.UNICODE ),  # gtb
+    re.compile( r"\bheraldscotland\b", re.IGNORECASE|re.UNICODE ),
+    ]
+
+def rate_publication(txt):
+    for pat in publication_pats:
+        if pat.search(txt):
+            return 1.0
+    return 0.0
+
+def rate_location(txt):
+    return 0.0
+
+
+def eval_author_link(a):
     score = 0.0
-
-    # TEST: likely-looking class or id
-    if _pats['classes'].search(el.get('class','')):
-        logging.debug("  likely class")
-        score += 1.0
-    if _pats['classes'].search(el.get('id','')):
-        logging.debug("  likely id")
-        score += 1.0
-
-    # TEST: parent has likely-looking class or id
-    parent = el.getparent()
-    if _pats['classes'].search(parent.get('class','')):
-        logging.debug("  parent has likely class")
-        score += 1.0
-    if _pats['classes'].search(parent.get('id','')):
-        logging.debug("  parent has likely id")
-        score += 1.0
-
-    # TEST: proximity to headline
-    if headline_node is not None:
-        dist = el.sourceline - headline_node.sourceline
-        if dist >-5 and dist <15:
-            logging.debug("  near headline")
-            score += 0.5
-
-        container = headline_node.getparent()
-        if(contains(container,el)):
-            logging.debug("  inside same container as headline")
-            score += 1.0
-
-    # TEST: proximity to pubdate
-    if pubdate_node is not None:
-        dist = el.sourceline - pubdate_node.sourceline
-        if dist >-5 and dist <10:
-            logging.debug("  near pubdate")
-            score += 0.5
-
-    return score
-
-
-
-def rate_author_link(a, headline_node, pubdate_node):
-    score = 0.0
-    name = unicode(a.text_content())
-    name = util.strip_date(name).strip()
     url = a.get('href','')
     rel = a.get('rel','')
-
-    # TEST: rate nameiness of name
-    name_score = names.rate_name(name)
-    if name_score < 0.0:
-        return 0.0  # early out
-
-    logging.debug(" byline: consider link '%s'" %(name,))
-    score += name_score
-    logging.debug("  name score: %.3f" % (name_score,))
+    title = a.get('title','')
+    if title:
+        logging.debug(title)
+    # TODO: TEST: email links almost certainly people?
 
     # TEST: likely url?
     if _pats['good_url'].search(url):
@@ -199,22 +321,10 @@ def rate_author_link(a, headline_node, pubdate_node):
         score += 2.0
         logging.debug("  -2 unlikely-looking rel")
 
-    score += rate_misc(a, headline_node, pubdate_node)
-
-    # TEST: in sidebar/footer?
-    up = a.getparent()
-    while(up is not None):
-        if _pats['structural_cruft'].search(up.get('id','')):
-            logging.debug("  -1 inside structural cruft (id: '%s')" % (up.get('id'),))
-            score -= 1.0
-            break
-        if _pats['structural_cruft'].search(up.get('class','')):
-            logging.debug("  -1 inside structural cruft (class: '%s')" %(up.get('class'),))
-            score -= 1.0
-            break
-        up = up.getparent()
-    # TODO TEST: preceeded by indicative text? ('By ....')
+    # TEST: unlikely text in title attr?
+    if _pats['bad_title_attr'].search(title):
+        score -= 2.0
+        logging.debug("  -2 unlikely-looking title attr")
 
     return score
-
 

@@ -312,6 +312,10 @@ def extract_pubdate(doc, url, headline_linenum):
 
 
 
+def parse_byline(el):
+    parts = []
+    parts.append(el.text)
 
-
+    for child in el:
+        parts.append(child.text_content);
 
