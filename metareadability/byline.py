@@ -84,6 +84,7 @@ def extract(doc, url, headline_node, pubdate_node):
     if candidates:
         results = sorted(candidates.values(), key=lambda item: item['score'], reverse=True)
 
+        logging.debug( " byline EARLY OUT - found suitable link(s)")
         logging.debug( " byline rankings:")
         for r in results:
             logging.debug("  %.3f: %s (%s)" % (r['score'], r['name'], r['url']))

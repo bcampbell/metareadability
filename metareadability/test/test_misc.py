@@ -1,9 +1,7 @@
-#!/usr/bin/env python
-
 import unittest
 import site
 import lxml.html
-site.addsitedir("..")
+#site.addsitedir("..")
 
 from metareadability.util import render_text
 
@@ -40,10 +38,6 @@ class TestMiscFunctions(unittest.TestCase):
         for sel,expected in tests:
             el = doc.cssselect(sel)[0]
             self.assertEqual(render_text(el),expected)
-
-
-if __name__ == '__main__':
-    unittest.main()
 
 
 

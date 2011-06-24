@@ -7,15 +7,15 @@ import logging
 import csv
 import socket
 import dateutil.parser
+import os
 
 from urllib2helpers import CacheHandler
 
 import site
-site.addsitedir("..")
+here = os.path.dirname(os.path.abspath(__file__))
+site.addsitedir(os.path.join(here,"../.."))
 
 import metareadability
-
-# TODO: turn into a proper test suite
 
 
 
@@ -84,11 +84,10 @@ def compare_result(got, expected, url):
 
 
 def main():
-    parser = OptionParser(usage="%prog: [options]")
+    parser = OptionParser(usage="%prog: [options] <csvfiles>")
     parser.add_option('-v', '--verbose', action='store_true')
     parser.add_option('-V', '--debug', action='store_true')
-    parser.add_option('-u', '--url', help="only test urls containing URL")
-    parser.add_option('-i', '--inputfile', help="inputfile (csv)", default="basic_tests.csv")
+    parser.add_option('-u', '--url', help="only test urls containing URL (can appear anywhere in url)")
     (options, args) = parser.parse_args()
  
     log_level = logging.ERROR
@@ -103,8 +102,9 @@ def main():
     urllib2.install_opener(opener)
     socket.setdefaulttimeout(5)
 
-    test_data = tests_from_csv(options.inputfile)
-
+    test_data = []
+    for infile in args:
+        test_data.extend(tests_from_csv(infile))
 
     good = 0
     bad = 0
