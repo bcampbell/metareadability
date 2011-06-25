@@ -182,7 +182,9 @@ def parse_byline_parts(parts):
             expect_person = True
             continue
 
-        # TODO: other indicatives: "at" "in" "for"
+        # TODO: check other indicatives: "at" "in" "for"
+
+        # TODO: check for obvious cruft "About us" etc...
 
         author_score = rate_author(txt,el)
         if expect_person:
@@ -326,26 +328,26 @@ def eval_author_link(a):
     # TEST: likely url?
     if _pats['good_url'].search(url):
         score += 1.0
-        logging.debug("  likely-looking url")
+        logging.debug("  likely-looking url '%s'" % (url,))
     # TEST: unlikely url?
     if _pats['bad_url'].search(url):
         score -= 1.0
-        logging.debug("  -1 unlikely-looking url")
+        logging.debug("  -1 unlikely-looking url '%s'" % (url,))
 
     # TEST: recognised rel- pattern?
     if _pats['good_rel'].search(rel):
         score += 2.0
-        logging.debug("  likely-looking rel")
+        logging.debug("  likely-looking rel '%s'" % (rel,))
 
     # TEST: unwanted rel- pattern?
     if _pats['bad_rel'].search(rel):
         score += 2.0
-        logging.debug("  -2 unlikely-looking rel")
+        logging.debug("  -2 unlikely-looking rel '%s'" % (rel,))
 
     # TEST: unlikely text in title attr?
     if _pats['bad_title_attr'].search(title):
         score -= 2.0
-        logging.debug("  -2 unlikely-looking title attr")
+        logging.debug("  -2 unlikely-looking title attr '%s'" % (title,))
 
     return score
 
