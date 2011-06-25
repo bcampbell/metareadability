@@ -1,0 +1,11 @@
+This directory holds the failsafe tests. They are articles which absolutely
+should work all the time.
+Any failiures here should be considered a showstopper (other than the
+obvious one of the source article disappearing from the publications
+CMS).
+
+In general, these tests are designed to ensure that publications covered
+by journalisted.com don't get broken by tweaks :-) But really, they are
+all sane(ish) articles which _should_ be parseable.
+No room for borderline cases in here.
+
