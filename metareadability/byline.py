@@ -89,6 +89,7 @@ def extract(doc, url, headline_node, pubdate_node):
         logging.debug("byline: consider <%s> '%s'"%(el.tag,txt[:75]))
         parts = tokenise_byline(el)
         authors, score = parse_byline_parts(parts)
+        logging.debug("   bylinescore=%.3f"%(score))
 
         if el.tag == 'a':
             logging.debug("LINK");
@@ -101,6 +102,7 @@ def extract(doc, url, headline_node, pubdate_node):
         if _pats['classes'].search(el.get('id','')):
             logging.debug("  +1 likely id")
             score += 1.0
+        logging.debug("   score=%.3f"%(score))
 
         if score>1.5:
             logging.debug("  score: %.3f"%(score,))
@@ -119,7 +121,7 @@ def extract(doc, url, headline_node, pubdate_node):
 
 
 
-indicative_pat = re.compile(r'^\s*(by|posted by|written by|von)\s*',re.IGNORECASE)
+indicative_pat = re.compile(r'^\s*(by|posted by|written by|exclusive by|von)\s*',re.IGNORECASE)
 
 def tokenise_byline(el):
     parts = []
@@ -138,7 +140,7 @@ def tokenise_byline(el):
     # now split up raw text parts by and/in/, etc...
     parts2 = []
     for part in parts:
-        fragments = re.compile(r'((?:\band\b)|(?:\bin\b)|(?:\s+-\s+)|[,|])',re.IGNORECASE).split(part[0])
+        fragments = re.compile(r'((?:\band\b)|(?:\bin\b)|(?:\s+-\s+)|[,|&])',re.IGNORECASE).split(part[0])
         parts2.append((fragments[0],part[1]))
         for frag in fragments[1:]:
             parts2.append((frag,part[1]))
@@ -165,6 +167,8 @@ def parse_byline_parts(parts):
         txt,el = parts[i]
 
         if len(txt.split())>=5:
+            logging.debug("  -2 excessive words")
+
             byline_score -= 2.0
             break
 
@@ -178,7 +182,7 @@ def parse_byline_parts(parts):
             logging.debug("  +1 Indicative")
             byline_score += 1.0
             continue
-        if txt.lower()=='and':
+        if txt.lower() in ('and','&'):
             expect_person = True
             continue
 
