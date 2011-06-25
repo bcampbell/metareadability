@@ -80,12 +80,13 @@ def extract(doc, url, headline_node, pubdate_node):
 
     candidates = {}
     for el in util.tags(doc, 'a','p','span','div','li','h3','h4','h5','h6','td'):
-        txt = util.render_text(el).strip()
+        txt = util.render_text(el)
+        txt = u' '.join(txt.split()).strip()
         if len(txt) > 200:
             continue
 
 
-        logging.debug("byline: consider '%s'",(txt[:75]))
+        logging.debug("byline: consider <%s> '%s'"%(el.tag,txt[:75]))
         parts = tokenise_byline(el)
         authors, score = parse_byline_parts(parts)
 
@@ -102,6 +103,9 @@ def extract(doc, url, headline_node, pubdate_node):
             score += 1.0
 
         if score>1.5:
+            logging.debug("  score: %.3f"%(score,))
+            # could be a date in it still
+            txt = util.strip_date(txt).strip()
             candidates[el] = {'element':el, 'score': score, 'raw_byline': txt}
 
     if candidates:
@@ -171,19 +175,23 @@ def parse_byline_parts(parts):
 
         if i==1 and indicative_pat.match(txt):
             # starts with "by" or similar.  yay.
+            logging.debug("  +1 Indicative")
             byline_score += 1.0
             continue
         if txt.lower()=='and':
             expect_person = True
             continue
+
+        # TODO: other indicatives: "at" "in" "for"
+
         author_score = rate_author(txt,el)
         if expect_person:
             expect_person = False
             author_score += 0.5
 
-        jobtitle_score = rate_job_title(txt)
-        publication_score = rate_publication(txt)
-        location_score = rate_publication(txt)
+        is_title = is_job_title(txt)
+        maybe_pub = could_be_publication(txt)
+#        location_score = rate_publication(txt)
 
         # now decide if it's a person or not...
         person = False
@@ -191,7 +199,7 @@ def parse_byline_parts(parts):
             person = True
 
         author_threshold = 0.0
-        if jobtitle_score > 0.0 or publication_score > 0.0 or location_score > 0.0:
+        if is_title or could_be_publication:
             person = False
         else:
             if author_score > 0.0:
@@ -204,17 +212,30 @@ def parse_byline_parts(parts):
             url = None
             if el is not None and el.tag=='a':
                 url = el.get('href',None)
-            authors.append({'name':txt, 'score':author_score, 'url':url, 'extra':[] })
+            authors.append({'name':txt, 'score':author_score, 'url':url, 'jobtitle':None, 'publication':None, 'cruft':[]})
+            logging.debug("  person: '%s' (%.3f)"%(txt,author_score))
         else:
-            authors[-1]['score'] += jobtitle_score + publication_score + location_score
-            authors[-1]['extra'].append(txt)
+            if is_title:
+                if authors[-1]['jobtitle'] is None:
+                    logging.debug("   +1 job title '%s'"%(txt))
+                    authors[-1]['jobtitle'] = txt
+                    authors[-1]['score'] += 1.0
+                else:
+                    logging.debug("   -1 extra job title '%s'" % (txt))
+                    authors[-1]['score'] -= 1.0
+            elif maybe_pub:
+                if authors[-1]['publication'] is None:
+                    logging.debug("   +.5 publication '%s'"%(txt))
+                    authors[-1]['publication'] = txt
+                    authors[-1]['score'] += 0.5
+                else:
+                    logging.debug("   -.5 extra publication '%s'" % (txt))
+                    authors[-1]['score'] -= 0.5
+            else:
+                authors[-1]['cruft'].append(txt)
+                logging.debug("   -.2 cruft '%s'" % (txt))
+                authors[-1]['score'] -= 0.2
 
-
-    # mark down anything
-    for author in authors:
-        n = len(author['extra'])
-        if n>2:
-            author['score'] -= n
 
     for author in authors:
         byline_score += author['score']
@@ -251,11 +272,11 @@ jobtitle_pats = [
     re.compile( """columnist""", re.IGNORECASE|re.UNICODE ),
     ]
 
-def rate_job_title(txt):
+def is_job_title(txt):
     for pat in jobtitle_pats:
         if pat.search(txt):
-            return 1.0
-    return 0.0
+            return True
+    return False
 
 # TODO: split out into data file
 publication_pats = [
@@ -283,11 +304,11 @@ publication_pats = [
     re.compile( r"\bheraldscotland\b", re.IGNORECASE|re.UNICODE ),
     ]
 
-def rate_publication(txt):
+def could_be_publication(txt):
     for pat in publication_pats:
         if pat.search(txt):
-            return 1.0
-    return 0.0
+            return True
+    return False
 
 def rate_location(txt):
     return 0.0
