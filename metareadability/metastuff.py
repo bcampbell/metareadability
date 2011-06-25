@@ -49,6 +49,7 @@ def extract(html,url):
     headline_info = extract_headline(doc,url)
     headline_linenum = 0
     headline = None
+    headline_node = None
     if headline_info is not None:
         headline_linenum = headline_info['sourceline']
         headline = headline_info['txt']
