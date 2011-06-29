@@ -8,6 +8,7 @@ import csv
 import socket
 import dateutil.parser
 import os
+import sys
 
 from urllib2helpers import CacheHandler
 
@@ -22,7 +23,6 @@ import metareadability
 def tests_from_csv(filename):
     # url, headline, journo/byline, pubdate
     reader = csv.reader(open(filename, 'rb'))
-
     rows = [ row for row in reader ]
     n = 1
     try:
@@ -35,8 +35,9 @@ def tests_from_csv(filename):
                 row[3] = dateutil.parser.parse(row[3])
             n+=1
     except:
-        print "error in %s:%d"%(filename,n)
+        logging.error("error in %s:%d"%(filename,n))
         raise
+    logging.info("loaded %d tests from '%s'",len(rows),filename)
     return rows
 
 
@@ -86,11 +87,11 @@ def compare_result(got, expected, url):
 def main():
     parser = OptionParser(usage="%prog: [options] <csvfiles>")
     parser.add_option('-v', '--verbose', action='store_true')
-    parser.add_option('-V', '--debug', action='store_true')
+    parser.add_option('-d', '--debug', action='store_true')
     parser.add_option('-u', '--url', help="only test urls containing URL (can appear anywhere in url)")
     (options, args) = parser.parse_args()
  
-    log_level = logging.ERROR
+    log_level = logging.WARNING
     if options.debug:
         log_level = logging.DEBUG
     elif options.verbose:
@@ -102,6 +103,9 @@ def main():
     urllib2.install_opener(opener)
     socket.setdefaulttimeout(5)
 
+
+    if len(args)<1:
+        parser.error("no input csv files")
     test_data = []
     for infile in args:
         test_data.extend(tests_from_csv(infile))
@@ -139,7 +143,14 @@ def main():
         else:
             bad += 1
 
-    print "finished: %d good, %d bad, %d skipped" % (good, bad, skipped)
+    summary = "finished: %d good, %d bad, %d skipped" % (good, bad, skipped)
+
+    if bad > 0:
+        logging.warn(summary)
+        sys.exit(1)
+    else:
+        logging.info(summary)
+        sys.exit(0)
 
 
 if __name__ == '__main__':
