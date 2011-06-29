@@ -15,6 +15,7 @@ import byline
 from pprint import pprint
 
 
+#from BeautifulSoup import BeautifulSoup, HTMLParseError, UnicodeDammit
 
 
 
@@ -41,6 +42,7 @@ byline_pats = { 'metatags': re.compile('',re.I),
 def extract(html,url):
     """ """
     logging.debug("*** extracting %s ***" % (url,))
+    #html = UnicodeDammit(html, isHTML=True).markup
     doc = lxml.html.fromstring(html)
 
     [i.drop_tree() for i in util.tags(doc,'script','style')]
