@@ -121,7 +121,7 @@ def extract(doc, url, headline_node, pubdate_node):
 
 
 
-indicative_pat = re.compile(r'^\s*(by|posted by|written by|exclusive by|published by|von)[:]?\s*',re.IGNORECASE)
+indicative_pat = re.compile(r'^\s*(by|posted by|written by|exclusive by|reviewed by|published by|von)[:]?\s*',re.IGNORECASE)
 
 def tokenise_byline(el):
     parts = []
