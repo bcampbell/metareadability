@@ -6,6 +6,7 @@ import re
 
 _lastnames = None
 _firstnames = None
+_notnames = None
 
 def _read_names(filename):
     """ helper to load in name lists """
@@ -26,11 +27,13 @@ def rate_name(name):
     -1 = certain it isn't
     """
 
-    global _firstnames, _lastnames
+    global _firstnames, _lastnames, _notnames
     if _firstnames is None:
         _firstnames = _read_names('firstnames.txt')
     if _lastnames is None:
         _lastnames = _read_names('lastnames.txt')
+    if _notnames is None:
+        _notnames = _read_names('notnames.txt')
 
     name = name.strip()
     if name == u'':
@@ -48,6 +51,11 @@ def rate_name(name):
 
     if parts[-1].lower() in _lastnames:
         score += 1.0
+
+    # check against blacklisted names
+    for part in parts:
+        if part.lower() in _notnames:
+            score -= 1.0
 
     # cheesiness: consolation points for captialisation:
     if score <= 0.0 and _prettycase_pat.match(parts[0]) and _prettycase_pat.match(parts[-1]):
