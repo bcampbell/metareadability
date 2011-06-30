@@ -1,0 +1,32 @@
+It's so easy to break the algorithm for some articles when trying to
+improve it to cover others, so there are a big bunch of examples here to run
+against to see how things stand.  The examples are in csv files, with the
+fields:
+  url, expected headline, expected byline, expected date
+
+Use the checkarticles tool, eg:
+  $ ./checkarticles -v failsafes/*.csv
+
+The csv files are in the following directories:
+
+failsafes/
+  This directory holds the failsafe tests. They are articles which
+  absolutely should work all the time.
+  Any failures here should be considered a showstopper (other than the
+  obvious one of the source article disappearing from the publications
+  CMS).
+  In general, these tests are designed to ensure that publications covered
+  by journalisted.com don't get broken by tweaks :-) But really, they are
+  all sane(ish) articles which _should_ be parseable.
+  No room for borderline cases in here.
+  The "test_failsafes.py" unittest only passes if all the failsafes pass.
+
+general/
+  sets which do parse, but not a showstopper if a couple break from time
+  to time.
+
+aspirational/
+  ones we'd _like_ to be able to parse, but probably can't
+  at the moment. Most of these will probably fail. When
+  they do start working they'll be moved into general or failsafes.
+
