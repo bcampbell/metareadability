@@ -92,7 +92,7 @@ def extract(doc, url, headline_node, pubdate_node):
         logging.debug("   bylinescore=%.3f"%(score))
 
         if el.tag == 'a':
-            logging.debug("LINK");
+            logging.debug("LINK")
             score += eval_author_link(el)
 
         # TEST: likely-looking class or id
@@ -332,7 +332,7 @@ def eval_author_link(a):
     # TEST: likely url?
     if _pats['good_url'].search(url):
         score += 1.0
-        logging.debug("  likely-looking url '%s'" % (url,))
+        logging.debug("  +1 likely-looking url '%s'" % (url,))
     # TEST: unlikely url?
     if _pats['bad_url'].search(url):
         score -= 1.0
@@ -341,11 +341,11 @@ def eval_author_link(a):
     # TEST: recognised rel- pattern?
     if _pats['good_rel'].search(rel):
         score += 2.0
-        logging.debug("  likely-looking rel '%s'" % (rel,))
+        logging.debug("  +2 likely-looking rel '%s'" % (rel,))
 
     # TEST: unwanted rel- pattern?
     if _pats['bad_rel'].search(rel):
-        score += 2.0
+        score -= 2.0
         logging.debug("  -2 unlikely-looking rel '%s'" % (rel,))
 
     # TEST: unlikely text in title attr?
