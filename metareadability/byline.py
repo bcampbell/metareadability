@@ -9,7 +9,7 @@ import names
 # from
 
 # various things that split up parts of a byline
-byline_split_pat = re.compile(r'\s*(?:[^\w\s]|\b(?:by|and|in|of|written|posted|updated)\b)+\s*',re.DOTALL|re.IGNORECASE)
+#byline_split_pat = re.compile(r'\s*(?:[^\w\s]|\b(?:by|and|in|of|written|posted|updated)\b)+\s*',re.DOTALL|re.IGNORECASE)
 
 
 
@@ -26,7 +26,7 @@ _pats = {
     'good_rel': re.compile(r'\bauthor\b',re.I),
     'bad_rel': re.compile(r'\btag\b',re.I),
     'bad_title_attr': re.compile(r'^more on ',re.I),
-    'classes': re.compile('byline|author|writer|credits',re.I),
+    'classes': re.compile('byline|by-line|author|writer|credits',re.I),
     'structural_cruft': re.compile(r'^(sidebar|footer)$',re.I),
 }
 
@@ -79,7 +79,7 @@ def extract(doc, url, headline_node, pubdate_node):
     all = doc.iter()
 
     candidates = {}
-    for el in util.tags(doc, 'a','p','span','div','li','h3','h4','h5','h6','td'):
+    for el in util.tags(doc, 'a','p','span','div','li','h3','h4','h5','h6','td','strong'):
         txt = util.render_text(el)
         txt = u' '.join(txt.split()).strip()
         if len(txt) > 200:
@@ -121,7 +121,7 @@ def extract(doc, url, headline_node, pubdate_node):
 
 
 
-indicative_pat = re.compile(r'^\s*(by|posted by|written by|exclusive by|von)\s*',re.IGNORECASE)
+indicative_pat = re.compile(r'^\s*(by|posted by|written by|exclusive by|published by|von)[:]?\s*',re.IGNORECASE)
 
 def tokenise_byline(el):
     parts = []
