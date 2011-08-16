@@ -71,6 +71,7 @@ def extract(doc, url, headline_node, pubdate_node):
     authors = doc.cssselect('.hentry .author .fn')
     if len(authors)>0:
         byline = u','.join([unicode(author.text_content()) for author in authors])
+        byline = byline.strip()
         logging.debug("found hatom author(s): %s" %(byline))
         return byline   # yay! early out.
 
@@ -115,7 +116,7 @@ def extract(doc, url, headline_node, pubdate_node):
         logging.debug( " byline rankings (top 10):")
         for r in results[:10]:
             logging.debug("  %.3f: '%s'" % (r['score'], r['raw_byline']))
-        return unicode(results[0]['raw_byline'])
+        return unicode(results[0]['raw_byline']).strip()
 
     return None
 
