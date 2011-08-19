@@ -44,6 +44,17 @@ def contains(container, el):
 
 
 def intervening(el_from, el_to, all):
+    pos1 = all.index(el_from)
+    pos2 = all.index(el_to)
+    assert(pos1 is not None)
+    assert(pos2 is not None)
+
+    if pos2>pos1:
+        return all[pos1+1:pos2]
+    else:
+        return None
+
+def OLD_intervening(el_from, el_to, all):
     """ returns list of elements between el_from and el_to, in document order """
     pos1=None
     pos2=None
@@ -53,7 +64,8 @@ def intervening(el_from, el_to, all):
         if x==el_to:
             pos2 = i
 
-    assert(pos1 is not None and pos2 is not None)
+    assert(pos1 is not None)
+    assert(pos2 is not None)
 
     if pos2>pos1:
         return all[pos1+1:pos2]
@@ -77,7 +89,7 @@ def extract(doc, url, headline_node, pubdate_node):
 
     # TODO: specialcase rel-author and rel-me? Are they used in the wild yet?
 
-    all = doc.iter()
+    all = list(doc.iter())
 
     candidates = {}
     for el in util.tags(doc, 'a','p','span','div','li','h3','h4','h5','h6','td','strong'):
@@ -104,6 +116,13 @@ def extract(doc, url, headline_node, pubdate_node):
             logging.debug("  +1 likely id")
             score += 1.0
         logging.debug("   score=%.3f"%(score))
+
+        # TEST: directly after headline?
+        foo = intervening(headline_node,el,all)
+        if foo is not None:
+            if len(foo) == 0:
+                logging.debug("  +0.5 directly after headline")
+                score += 0.5
 
         if score>1.5:
             logging.debug("  score: %.3f"%(score,))
