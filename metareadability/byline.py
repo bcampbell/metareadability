@@ -141,7 +141,7 @@ def extract(doc, url, headline_node, pubdate_node):
 
 
 
-indicative_pat = re.compile(r'^\s*(by|posted by|written by|exclusive by|reviewed by|published by|von)[:]?\s*',re.IGNORECASE)
+indicative_pat = re.compile(r'^\s*(by|posted by|written by|exclusive by|reviewed by|published by|photographs by|von)[:]?\s*',re.IGNORECASE)
 
 def tokenise_byline(el):
     parts = []
@@ -306,7 +306,7 @@ def is_job_title(txt):
 
 # TODO: split out into data file
 publication_pats = [
-    re.compile( r'\b(?:mail|sunday|press|bbc|mirror|telegraph|agencies|agences|express|reuters|afp|news|online|herald|guardian|times)\b', re.IGNORECASE ),
+    re.compile( r'\b(?:mail|sunday|magazine|press|bbc|mirror|telegraph|agencies|agences|express|reuters|afp|news|online|herald|guardian|times)\b', re.IGNORECASE ),
     re.compile( """the mail on sunday""", re.IGNORECASE|re.UNICODE ),
     re.compile( """the times""", re.IGNORECASE|re.UNICODE ),
     re.compile( """associated press""", re.IGNORECASE|re.UNICODE ),
