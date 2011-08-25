@@ -32,6 +32,8 @@ class fuzzydate:
         return datetime.time(self.hour, self.minute, second, microsecond, self.tzinfo)
 
     def datetime(self):
+        if self.year is None:
+            return None
         return datetime.datetime.combine(self.date(), self.time())
 
     def __repr__(self):
@@ -204,7 +206,9 @@ def parse_date(s):
 
 
 def parse_time(s):
+    i = 0
     for cracker in time_crackers:
+        i=i+1
         m = cracker.search(s)
         if not m:
             continue
@@ -223,11 +227,18 @@ def parse_time(s):
             if g.get('am',None) is not None and hour==12:
                 hour = hour - 12
 
+            if hour<0 or hour>23:
+                continue
+
         if g.get('min', None) is not None:
             minute = int(g['min'])
+            if minute<0 or minute>59:
+                continue
 
         if g.get('sec', None) is not None:
             second = int(g['sec'])
+            if second<0 or second>59:
+                continue
 
         if g.get('tz', None) is not None:
             tzinfo = dateutil.tz.gettz(g['tz'])
@@ -242,12 +253,16 @@ def parse_time(s):
 def parse_datetime(s):
     # TODO: include ',', 'T', 'at', 'on' between  date and time in the matched span...
 
-    date,datespan = parse_date(s)
-    if datespan:
-        # just to make sure date doesn't get picked up again as time...
-        s = s[:datespan[0]] + s[datespan[1]:]
-
     time,timespan = parse_time(s)
+    if timespan:
+        # just to make sure time doesn't get picked up again as date... (bad news as hour can look like year!)
+        s = s[:timespan[0]] + s[timespan[1]:]
+
+    date,datespan = parse_date(s)
+#    if datespan:
+#        # just to make sure date doesn't get picked up again as time...
+#        s = s[:datespan[0]] + s[datespan[1]:]
+
     fd = fuzzydate.combine(date,time)
 #    print "%s -> %s" % (s,fd)
     return fd
@@ -302,8 +317,16 @@ class Tests(unittest.TestCase):
         ('Feb 20th, 2000', (2000,2,20,0,0,0)),
         ('May 2008', (2008,5,1,0,0,0)),
         ('Monday, May. 17, 2010', (2010,5,17,0,0,0)),   # (time.com)
+        ('Thu Aug 25 10:46:55 BST 2011', (2011,8,25,9,46,55)), # (www.yorkshireeveningpost.co.uk)
         # TODO: add better timezone parsing:
     #    ("Thursday April 7, 2011 8:56 PM NZT", (2011,4,7,8,56,00)),    # nz herald
+
+        # some that should fail!
+        ('50.50', None),
+        ('13:01pm', None),
+        ('01:62pm', None),
+        # TODO: should reject these: (but day is just ignored)
+#        ('32nd dec 2010', None),
     ]
 
 
@@ -315,9 +338,12 @@ class Tests(unittest.TestCase):
         for foo in self.examples_in_the_wild:
             fuzzy = parse_datetime(foo[0])
             got = self.fuzzy_to_dt(fuzzy)
-            expected = datetime.datetime(*foo[1], tzinfo=self.utc)
+            if foo[1] is not None:
+                expected = datetime.datetime(*foo[1], tzinfo=self.utc)
+            else:
+                expected = None
 
-            self.assertEqual(got,expected, "'%s': expected '%s', got '%s')" % (foo[0], got, expected))
+            self.assertEqual(got,expected, "'%s': expected '%s', got '%s')" % (foo[0],expected,got))
 
     def testSpans(self):
         """ tests to make sure we are precise """
@@ -344,7 +370,9 @@ class Tests(unittest.TestCase):
             fuzzy.tzinfo = self.utc
 
         # convert to utc
-        dt = fuzzy.datetime().astimezone(self.utc)
+        dt = fuzzy.datetime()
+        if dt is not None:
+            dt = dt.astimezone(self.utc)
         return dt
 
  
