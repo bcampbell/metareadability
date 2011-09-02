@@ -21,7 +21,7 @@ import names
 
 _pats = {
     'good_url': re.compile(r'[/](columnistarchive|profile|about|author[s]?|writer|i-author|authorinfo)[/]', re.I),
-    'bad_url': re.compile(r'[/](category|tag[s]?|topic[s]?|thema)[/]', re.I),
+    'bad_url': re.compile(r'([/](category|tag[s]?|topic[s]?|thema)[/])|(#comment[s]?$)', re.I),
     # TODO: support xfn rel-me?
     'good_rel': re.compile(r'\bauthor\b',re.I),
     'bad_rel': re.compile(r'\btag\b',re.I),
@@ -75,6 +75,7 @@ def OLD_intervening(el_from, el_to, all):
 
 
 def extract(doc, url, headline_node, pubdate_node):
+    """ Returns byline text """
 
     logging.debug("EXTRACTING BYLINE")
 
@@ -82,7 +83,7 @@ def extract(doc, url, headline_node, pubdate_node):
     # TODO: more robust hCard support!
     authors = doc.cssselect('.hentry .author .fn')
     if len(authors)>0:
-        byline = u','.join([unicode(author.text_content()) for author in authors])
+        byline = u', '.join([unicode(author.text_content()) for author in authors])
         byline = byline.strip()
         logging.debug("found hatom author(s): %s" %(byline))
         return byline   # yay! early out.
@@ -128,6 +129,8 @@ def extract(doc, url, headline_node, pubdate_node):
             logging.debug("  score: %.3f"%(score,))
             # could be a date in it still
             txt = util.strip_date(txt).strip()
+
+            # reconstiute
             candidates[el] = {'element':el, 'score': score, 'raw_byline': txt}
 
     if candidates:
@@ -140,6 +143,12 @@ def extract(doc, url, headline_node, pubdate_node):
     return None
 
 
+def reconstitute_byline(authors):
+    names = [a['name'] for a in authors]
+    raw_byline = u', '.join(names)
+    if raw_byline != u'':
+        raw_byline = u'by ' + raw_byline
+    return raw_byline
 
 indicative_pat = re.compile(r'^\s*(by|posted by|written by|exclusive by|reviewed by|published by|photographs by|von)[:]?\s*',re.IGNORECASE)
 
@@ -180,7 +189,11 @@ def tokenise_byline(el):
 def parse_byline_parts(parts):
     authors = []
 
-    expect_person = True
+    ANY=0
+    PERSON=1
+    PLACE_OR_CATEGORY=2
+
+    expecting = PERSON
     byline_score = 0.0
     i=0
     while i < len(parts):
@@ -201,18 +214,21 @@ def parse_byline_parts(parts):
             # starts with "by" or similar.  yay.
             logging.debug("  +1 Indicative")
             byline_score += 1.0
+            expecting = PERSON
             continue
         if txt.lower() in ('and','&'):
-            expect_person = True
+            expecting = PERSON
             continue
 
-        # TODO: check other indicatives: "at" "in" "for"
+        if txt.lower() in ('in',):
+            expecting = PLACE_OR_CATEGORY
+            continue
 
         # TODO: check for obvious cruft "About us" etc...
 
         author_score = rate_author(txt,el)
-        if expect_person:
-            expect_person = False
+        if expecting==PERSON:
+            expecting = ANY
             author_score += 0.5
 
         is_title = is_job_title(txt)
@@ -225,11 +241,12 @@ def parse_byline_parts(parts):
             person = True
 
         author_threshold = 0.0
-        if is_title or could_be_publication:
+        if is_title or maybe_pub or expecting==PLACE_OR_CATEGORY:
             person = False
         else:
             if author_score > 0.0:
                 person = True
+
 
         if len(authors) == 0:
             person = True
@@ -262,9 +279,10 @@ def parse_byline_parts(parts):
                 logging.debug("   -.2 cruft '%s'" % (txt))
                 authors[-1]['score'] -= 0.2
 
+        expecting = ANY
 
-    for author in authors:
-        byline_score += author['score']
+    if len(authors)>0:
+        byline_score += sum([author['score'] for author in authors]) / len(authors)
 
     return authors,byline_score
 
@@ -306,7 +324,7 @@ def is_job_title(txt):
 
 # TODO: split out into data file
 publication_pats = [
-    re.compile( r'\b(?:mail|sunday|magazine|press|bbc|mirror|telegraph|agencies|agences|express|reuters|afp|news|online|herald|guardian|times)\b', re.IGNORECASE ),
+    re.compile( r'\b(?:mail|sunday|magazine|press|bbc|mirror|telegraph|agencies|agences|express|reuters|afp|news|online|herald|guardian|times|echo)\b', re.IGNORECASE ),
     re.compile( """the mail on sunday""", re.IGNORECASE|re.UNICODE ),
     re.compile( """the times""", re.IGNORECASE|re.UNICODE ),
     re.compile( """associated press""", re.IGNORECASE|re.UNICODE ),
@@ -345,6 +363,7 @@ def eval_author_link(a):
     url = a.get('href','')
     rel = a.get('rel','')
     title = a.get('title','')
+#    logging.debug("  eval_author_link '%s'" % (a.text_content().strip(),))
     if title:
         logging.debug(title)
     # TODO: TEST: email links almost certainly people?
