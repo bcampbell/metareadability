@@ -150,7 +150,7 @@ def reconstitute_byline(authors):
         raw_byline = u'by ' + raw_byline
     return raw_byline
 
-indicative_pat = re.compile(r'^\s*(by|posted by|written by|exclusive by|reviewed by|published by|photographs by|von)[:]?\s*',re.IGNORECASE)
+indicative_pat = re.compile(r'^\s*(by|text by|posted by|written by|exclusive by|reviewed by|published by|photographs by|von)[:]?\s*',re.IGNORECASE)
 
 def tokenise_byline(el):
     parts = []
