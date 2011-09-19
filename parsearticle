@@ -4,6 +4,7 @@
 import urllib2
 import logging
 from optparse import OptionParser
+import re
 
 from metareadability import metastuff
 
@@ -23,8 +24,14 @@ def main():
     logging.basicConfig(level=log_level, format='%(message)s')
 
     for url in args:
-        html = urllib2.urlopen(url).read()
-        headline,byline,pubdate = metastuff.extract(html,url)
+        resp = urllib2.urlopen(url)
+        html = resp.read()
+        kwargs = {}
+        content_type = resp.info().getheader('Content-Type','')
+        m = re.compile(r';\s*charset\s*=\s*([^;]*)', re.I).search(content_type)
+        if m:
+            kwargs['encoding'] = m.group(1)
+        headline,byline,pubdate = metastuff.extract(html, url, **kwargs)
         print "%s,%s,%s,%s" % (url,headline,byline,pubdate)
 
 if __name__ == '__main__':

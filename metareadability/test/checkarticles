@@ -9,6 +9,7 @@ import socket
 import dateutil.parser
 import os
 import sys
+import re
 
 from urllib2helpers import CacheHandler
 
@@ -121,19 +122,25 @@ def main():
         if options.url and options.url not in url:
             continue
 
+        kwargs = {}
         if url.endswith(".pdf"):
             logging.info("SKIP pdf: %s" %(url,))
             skipped += 1
             continue
 #        print "fetching", url
         try:
-            html = urllib2.urlopen(url).read()
+            resp = urllib2.urlopen(url)
+            html = resp.read()
+            content_type = resp.info().getheader('Content-Type','')
+            m = re.compile(r';\s*charset\s*=\s*([^;]*)', re.I).search(content_type)
+            if m:
+                kwargs['encoding'] = m.group(1)
         except urllib2.URLError, e:
             logging.info("URLError (%s) on %s" %(e,url))
             skipped += 1
             continue
 
-        got = metareadability.extract(html,url)
+        got = metareadability.extract(html,url,**kwargs)
 #        print "got '%s' (expected %s) [ %s ]" %(got[1],expected[1],url)
 #        continue
         logging.debug(got)
