@@ -34,7 +34,9 @@ def main():
         if m:
             kwargs['encoding'] = m.group(1)
         headline,byline,pubdate = metastuff.extract(html, url, **kwargs)
-        row = [foo.encode('utf-8') for foo in (url,headline,byline,unicode(pubdate.date()))]
+
+        row = [url,headline,byline,unicode(pubdate.date())]
+        row = [f.encode('utf-8') if f is not None else u'' for f in row]
         w = csv.writer(sys.stdout)
         w.writerow(row)
 
