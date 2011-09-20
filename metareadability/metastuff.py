@@ -43,12 +43,11 @@ def extract(html, url, **kwargs):
     """ """
     logging.debug("*** extracting %s ***" % (url,))
 
+    kw = { 'remove_comments': True }
     if 'encoding' in kwargs:
-        parser = lxml.html.HTMLParser(encoding = kwargs['encoding'])
-        doc = lxml.html.document_fromstring(html, parser, base_url=url)
-    else:
-        # just let lxml guess encoding from the meta tags etc...
-        doc = lxml.html.document_fromstring(html, base_url=url)
+        kw['encoding'] = kwargs['encoding']
+    parser = lxml.html.HTMLParser(**kw)
+    doc = lxml.html.document_fromstring(html, parser, base_url=url)
 
     [i.drop_tree() for i in util.tags(doc,'script','style')]
 
