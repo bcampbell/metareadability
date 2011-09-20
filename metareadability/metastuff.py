@@ -51,6 +51,11 @@ def extract(html, url, **kwargs):
 
     [i.drop_tree() for i in util.tags(doc,'script','style')]
 
+    # drop comment divs - they have a nasty habit of screwing things up
+    [i.drop_tree() for i in doc.cssselect('#disqus_thread')]
+    [i.drop_tree() for i in doc.cssselect('#comments')]
+
+
 #    html = UnicodeDammit(html, isHTML=True).markup
     headline_info = extract_headline(doc,url)
     headline_linenum = 0
@@ -75,7 +80,7 @@ def extract_headline(doc,url):
 
     candidates = {}
 
-    for h in util.tags(doc,'h1','h2','h3','h4','h5','h6','div'):
+    for h in util.tags(doc,'h1','h2','h3','h4','h5','h6','div','span'):
         score = 1
         txt = unicode(h.text_content()).strip()
         txt = u' '.join(txt.split())
@@ -106,6 +111,9 @@ def extract_headline(doc,url):
         if h.tag in ('h1','h2','h3','h4'):
             logging.debug("  significant heading (%s)" % (h.tag,))
             score += 2
+        if h.tag in ('span'):
+            logging.debug("  -2 less headline-y element (%s)" % (h.tag,))
+            score -= 2
 
         # TEST: does it appear in <title> text?
         title = unicode(getattr(doc.find('.//title'), 'text', ''))
