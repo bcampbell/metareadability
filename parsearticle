@@ -5,6 +5,8 @@ import urllib2
 import logging
 from optparse import OptionParser
 import re
+import csv
+import sys
 
 from metareadability import metastuff
 
@@ -32,7 +34,9 @@ def main():
         if m:
             kwargs['encoding'] = m.group(1)
         headline,byline,pubdate = metastuff.extract(html, url, **kwargs)
-        print "%s,%s,%s,%s" % (url,headline,byline,pubdate)
+        row = [foo.encode('utf-8') for foo in (url,headline,byline,unicode(pubdate.date()))]
+        w = csv.writer(sys.stdout)
+        w.writerow(row)
 
 if __name__ == '__main__':
     main()
