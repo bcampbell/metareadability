@@ -56,13 +56,19 @@ def BYLINE_ONLY_compare_result(got, expected, url):
         logging.debug("matched %s" % (url,))
         return True
 
+
+def norm(txt):
+    if txt is None:
+        return u''
+    return metareadability.util.normalise_text(txt)
+
+
 def compare_result(got, expected, url):
 
     errs = []
 
-    norm = metareadability.util.normalise_text
     #headline
-    if got[0] is None or norm(got[0]) != norm(expected[0]):
+    if norm(got[0]) != norm(expected[0]):
         errs.append("title: got '%s', expected '%s'" % (got[0],expected[0]))
     #pubdate
     a = None if got[2] is None else got[2].date()
@@ -71,9 +77,8 @@ def compare_result(got, expected, url):
         errs.append(" date: got '%s', expected '%s'" % (got[2],expected[2]))
 
     # byline
-    byline = got[1] if got[1] is not None else u''
-    if byline != expected[1]:
-        errs.append(" byline: got '%s', expected '%s'" % (byline,expected[1]))
+    if norm(got[1]) != norm(expected[1]):
+        errs.append(" byline: got '%s', expected '%s'" % (got[1],expected[1]))
  
 
     if errs:
