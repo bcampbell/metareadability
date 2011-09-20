@@ -26,7 +26,7 @@ _pats = {
     'good_rel': re.compile(r'\bauthor\b',re.I),
     'bad_rel': re.compile(r'\btag\b',re.I),
     'bad_title_attr': re.compile(r'^more on ',re.I),
-    'classes': re.compile('byline|by-line|author|writer|credits',re.I),
+    'classes': re.compile('byline|by-line|author|writer|credits|firma',re.I),
     'structural_cruft': re.compile(r'^(sidebar|footer)$',re.I),
 }
 

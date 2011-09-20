@@ -1,3 +1,5 @@
+# -*- coding: utf-8 -*-
+
 import re
 import datetime
 import dateutil.tz
@@ -118,7 +120,16 @@ dayname_lookup = {
     'thu': 'thu', 'thursday': 'thu',
     'fri': 'fri', 'friday': 'fri',
     'sat': 'sat', 'saturday': 'sat',
-    'sun': 'sun', 'sunday': 'sun' }
+    'sun': 'sun', 'sunday': 'sun',
+    # es
+    'lunes': 'mon',
+    'martes': 'tue',
+    'miércoles': 'wed',
+    'jueves': 'thu',
+    'viernes': 'fri',
+    'sábado': 'sat',
+    'domingo': 'sun',
+}
 
 
 month_lookup = {
@@ -133,7 +144,21 @@ month_lookup = {
     '09': 9, '9':9, 'sep': 9, 'september': 9,
     '10': 10, '10':10, 'oct': 10, 'october': 10,
     '11': 11, '11':11, 'nov': 11, 'november': 11,
-    '12': 12, '12':12, 'dec': 12, 'december': 12 }
+    '12': 12, '12':12, 'dec': 12, 'december': 12,
+    # es
+    'enero': 1,
+    'febrero': 2,
+    'marzo': 3,
+    'abril': 4,
+    'mayo': 5,
+    'junio': 6,
+    'julio': 7,
+    'agosto': 8,
+    'septiembre': 9,
+    'octubre': 10,
+    'noviembre': 11,
+    'diciembre': 12,
+}
 
 
 # "BST" ,"+02:00", "+02"

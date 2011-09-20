@@ -24,7 +24,7 @@ headline_pats = { 'classes': re.compile('entry-title|headline|title',re.I),
         }
 
 pubdate_pats = { 'metatags': re.compile('date|time',re.I),
-    'classes': re.compile('published|updated|date|time',re.I),
+    'classes': re.compile('published|updated|date|time|fecha',re.I),
     'url_datefmts': (
         re.compile(r'/(?P<year>\d{4})/(?P<month>\d{1,2})/(?P<day>\d{1,2})/',re.I),
         re.compile(r'[^0-9](?P<year>\d{4})-(?P<month>\d{1,2})-(?P<day>\d{1,2})[^0-9]',re.I),
@@ -105,7 +105,7 @@ def extract_headline(doc,url):
 
         if h.tag in ('h1','h2','h3','h4'):
             logging.debug("  significant heading (%s)" % (h.tag,))
-            score +=1
+            score += 2
 
         # TEST: does it appear in <title> text?
         title = unicode(getattr(doc.find('.//title'), 'text', ''))
