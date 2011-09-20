@@ -44,15 +44,18 @@ def contains(container, el):
 
 
 def intervening(el_from, el_to, all):
-    pos1 = all.index(el_from)
-    pos2 = all.index(el_to)
-    assert(pos1 is not None)
-    assert(pos2 is not None)
+    try:
+        pos1 = all.index(el_from)
+        pos2 = all.index(el_to)
+        assert(pos1 is not None)
+        assert(pos2 is not None)
 
-    if pos2>pos1:
-        return all[pos1+1:pos2]
-    else:
-        return None
+        if pos2>pos1:
+            return all[pos1+1:pos2]
+    except:
+        pass
+
+    return None
 
 def OLD_intervening(el_from, el_to, all):
     """ returns list of elements between el_from and el_to, in document order """
