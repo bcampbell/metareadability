@@ -7,7 +7,8 @@ from optparse import OptionParser
 import re
 import csv
 import sys
-
+import socket
+from metareadability.test.urllib2helpers import CacheHandler
 from metareadability import metastuff
 
 def main():
@@ -15,6 +16,7 @@ def main():
     parser.add_option('-v', '--verbose', action='store_true')
     parser.add_option('-d', '--debug', action='store_true')
     parser.add_option('-u', '--url', help="only test urls containing URL")
+    parser.add_option('-c', '--cache', action='store_true', help="cache downloaded files in .cache dir")
     (options, args) = parser.parse_args()
 
     log_level = logging.ERROR
@@ -24,6 +26,14 @@ def main():
         log_level = logging.INFO
 
     logging.basicConfig(level=log_level, format='%(message)s')
+
+    if options.cache:
+        logging.info("Using .cache")
+        opener = urllib2.build_opener(CacheHandler('.cache'))
+    else:
+        opener = urllib2.build_opener()
+    urllib2.install_opener(opener)
+    socket.setdefaulttimeout(5)
 
     for url in args:
         resp = urllib2.urlopen(url)
