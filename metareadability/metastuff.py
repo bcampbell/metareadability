@@ -80,7 +80,7 @@ def extract_headline(doc,url):
 
     candidates = {}
 
-    for h in util.tags(doc,'h1','h2','h3','h4','h5','h6','div','span'):
+    for h in util.tags(doc,'h1','h2','h3','h4','h5','h6','div','span','td'):
         score = 1
         txt = unicode(h.text_content()).strip()
         txt = u' '.join(txt.split())
@@ -111,7 +111,7 @@ def extract_headline(doc,url):
         if h.tag in ('h1','h2','h3','h4'):
             logging.debug("  significant heading (%s)" % (h.tag,))
             score += 2
-        if h.tag in ('span'):
+        if h.tag in ('span','td'):
             logging.debug("  -2 less headline-y element (%s)" % (h.tag,))
             score -= 2
 
