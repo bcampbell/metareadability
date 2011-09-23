@@ -86,3 +86,19 @@ def strip_date(s):
 
     return s
 
+
+def iter_text(el):
+    """ iterate over all the text contained by the element
+
+    yields (text,element) pairs, in document order
+    """
+    if el.text is not None:
+        yield (el.text,el)
+
+    for child in el:
+        for part in iter_text(child):
+            yield part
+
+    if el.tail is not None:
+        yield (el.tail,el)
+
