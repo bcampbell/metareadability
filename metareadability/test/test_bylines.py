@@ -129,8 +129,7 @@ class TestBylines(unittest.TestCase):
         failcnt = 0
         for (html_fragment,expected) in test_data:
             doc = lxml.html.fromstring(html_fragment)
-            parts = byline.tokenise_byline(doc)
-            authors, score = byline.parse_byline_parts(parts)
+            authors, score = byline.parse_byline(doc)
 
             if not self.cmp(expected,authors):
                 failcnt += 1

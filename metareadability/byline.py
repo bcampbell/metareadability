@@ -3,6 +3,7 @@ import logging
 from pprint import pprint
 
 import util
+import fuzzydate
 import names
 
 #'indicative': re.compile(r'^(by|written by|posted by|von)\b',re.I),
@@ -57,83 +58,27 @@ def intervening(el_from, el_to, all):
 
     return None
 
-def OLD_intervening(el_from, el_to, all):
-    """ returns list of elements between el_from and el_to, in document order """
-    pos1=None
-    pos2=None
-    for i,x in enumerate(all):
-        if x==el_from:
-            pos1 = i
-        if x==el_to:
-            pos2 = i
-
-    assert(pos1 is not None)
-    assert(pos2 is not None)
-
-    if pos2>pos1:
-        return all[pos1+1:pos2]
-    else:
-        return None
-
-
 
 def extract(doc, url, headline_node, pubdate_node):
     """ Returns byline text """
 
     logging.debug("EXTRACTING BYLINE")
 
-    # check hatom author
-    # TODO: more robust hCard support!
-    authors = doc.cssselect('.hentry .author .fn')
-    if len(authors)>0:
-        byline = u', '.join([unicode(author.text_content()) for author in authors])
-        byline = byline.strip()
-        logging.debug("found hatom author(s): %s" %(byline))
-        return byline   # yay! early out.
-
-    # TODO: specialcase rel-author and rel-me? Are they used in the wild yet?
 
     all = list(doc.iter())
 
     candidates = {}
+    # TODO: early-out for special cases (eg hAtom author, rel="author")
     for el in util.tags(doc, 'a','p','span','div','li','h3','h4','h5','h6','td','strong'):
-        txt = util.render_text(el)
-        txt = u' '.join(txt.split()).strip()
-        if len(txt) > 200:
-            continue
 
-
-        logging.debug("byline: consider <%s> '%s'"%(el.tag,txt[:75]))
-        parts = tokenise_byline(el)
-        authors, score = parse_byline_parts(parts)
-        logging.debug("   bylinescore=%.3f"%(score))
-
-        if el.tag == 'a':
-            logging.debug("LINK")
-            score += eval_author_link(el)
-
-        # TEST: likely-looking class or id
-        if _pats['classes'].search(el.get('class','')):
-            logging.debug("  +1 likely class")
-            score += 1.0
-        if _pats['classes'].search(el.get('id','')):
-            logging.debug("  +1 likely id")
-            score += 1.0
-        logging.debug("   score=%.3f"%(score))
-
-        # TEST: directly after headline?
-        foo = intervening(headline_node,el,all)
-        if foo is not None:
-            if len(foo) == 0:
-                logging.debug("  +0.5 directly after headline")
-                score += 0.5
+        authors, score = parse_byline(el, all, headline_node)
 
         if score>1.5:
-            logging.debug("  score: %.3f"%(score,))
             # could be a date in it still
-            txt = util.strip_date(txt).strip()
+            #txt = util.strip_date(txt).strip()
 
             # reconstiute
+            txt = u" and ".join([a['name'] for a in authors])
             candidates[el] = {'element':el, 'score': score, 'raw_byline': txt}
 
     if candidates:
@@ -146,6 +91,83 @@ def extract(doc, url, headline_node, pubdate_node):
     return None
 
 
+indicative_pat = re.compile(r'\s*(by|text by|posted by|written by|exclusive by|reviewed by|published by|photographs by|von)[:]?\s*',re.IGNORECASE)
+
+def parse_byline(candidate,all,headline_node):
+    authors = []
+    score = 0.0
+    txt = util.render_text(candidate)
+    txt = u' '.join(txt.split()).strip()
+    if len(txt) > 200:
+        return (authors,score)
+
+    logging.debug("byline: consider <%s> '%s'"%(candidate.tag,txt[:75]))
+
+#    if candidate.tag == 'a':
+#        score += eval_author_link(candidate)
+
+    # split up using html structure
+    parts = util.iter_text(candidate)
+
+    # pass 1: check for and strip out parts with dates & times
+    # TODO: this is a bit ruthless - could lose names if in same block
+    parts2 = []
+    for txt,el in parts:
+        t,dspan = fuzzydate.parse_date(txt)
+        if dspan is not None:
+            logging.debug("  +0.1 contains date")
+            score += 0.1
+        d,tspan = fuzzydate.parse_time(txt)
+        if tspan is not None:
+            logging.debug("  +0.1 contains time")
+            score += 0.1
+        if dspan is None and tspan is None:
+            parts2.append((txt,el))
+
+    # pass 2: split up text on likely separators - "and" "in" or any non alphabetic chars...
+    # (capturing patterns are included in results)
+    split_pat = re.compile(r'((?:\b(?:and|in)\b)|(?:[^\w\s]+))',re.IGNORECASE|re.UNICODE)
+    parts3 = []
+    for txt,el in parts2:
+        fragments = split_pat.split(txt)
+        for frag in fragments:
+            parts3.append((frag.strip(),el))
+
+    # pass three - split out indicatives ("by", "posted by" etc)
+    parts4 = []
+    for txt,el in parts3:
+        for frag in indicative_pat.split(txt):
+            parts4.append((frag,el))
+
+    # clean up
+    parts4 = [(txt.strip(),el) for txt,el in parts4]
+    parts4 = [(txt,el) for txt,el in parts4 if txt!=u'']
+
+    # now run through classifying and collecting authors
+    authors,score = parse_byline_parts(parts4)
+
+    # TEST: likely-looking class or id
+    if _pats['classes'].search(candidate.get('class','')):
+        logging.debug("  +1 likely class")
+        score += 1.0
+    if _pats['classes'].search(candidate.get('id','')):
+        logging.debug("  +1 likely id")
+        score += 1.0
+
+    # TEST: directly after headline?
+    foo = intervening(headline_node,candidate,all)
+    if foo is not None:
+        if len(foo) == 0:
+            logging.debug("  +0.5 directly after headline")
+            score += 0.5
+
+    logging.debug( "  total: %.3f" % (score,))
+
+    return (authors, score)
+
+
+
+
 def reconstitute_byline(authors):
     names = [a['name'] for a in authors]
     raw_byline = u', '.join(names)
@@ -153,40 +175,6 @@ def reconstitute_byline(authors):
         raw_byline = u'by ' + raw_byline
     return raw_byline
 
-indicative_pat = re.compile(r'^\s*(by|text by|posted by|written by|exclusive by|reviewed by|published by|photographs by|von)[:]?\s*',re.IGNORECASE)
-
-def tokenise_byline(el):
-    parts = []
-
-    # split into parts based on html structure
-    if el.text:
-        parts.append((unicode(el.text),None))
-    for child in el:
-        parts.append((unicode(child.text_content()),child))
-        if child.tail:
-            parts.append((unicode(child.tail),None))
-
-    # strip out any dates (often mashed in with byline)
-    parts = [(util.strip_date(txt),e) for txt,e in parts]
-
-    # now split up raw text parts by and/in/, etc...
-    parts2 = []
-    for part in parts:
-        fragments = re.compile(r'((?:\band\b)|(?:\bin\b)|(?:\s+-\s+)|[,|&])',re.IGNORECASE).split(part[0])
-        parts2.append((fragments[0],part[1]))
-        for frag in fragments[1:]:
-            parts2.append((frag,part[1]))
-
-    parts3 = []
-    for part in parts2:
-        for frag in indicative_pat.split(part[0]):
-            parts3.append((frag,part[1]))
-
-    # clean up
-    parts3 = [(s.strip(),e) for s,e in parts3]
-    parts3 = [(s,e) for s,e in parts3 if s!=u'']
-
-    return parts3
 
 
 def parse_byline_parts(parts):
