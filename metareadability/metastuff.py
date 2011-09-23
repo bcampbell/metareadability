@@ -80,7 +80,7 @@ def extract_headline(doc,url):
 
     candidates = {}
 
-    for h in util.tags(doc,'h1','h2','h3','h4','h5','h6','div','span','td'):
+    for h in util.tags(doc,'h1','h2','h3','h4','h5','h6','div','span','td','th'):
         score = 1
         txt = unicode(h.text_content()).strip()
         txt = u' '.join(txt.split())
@@ -243,7 +243,7 @@ def extract_pubdate(doc, url, headline_linenum):
 #        return d,None
 
     # start looking through whole page
-    for e in util.tags(doc,'p','span','div','li','td','h4','h5','h6','font'):
+    for e in util.tags(doc,'p','span','div','li','td','th','h4','h5','h6','font'):
         txt = unicode(e.text_content()).strip()
         txt = u' '.join(txt.split())
 
