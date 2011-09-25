@@ -46,6 +46,15 @@ def extract(html, url, **kwargs):
     kw = { 'remove_comments': True }
     if 'encoding' in kwargs:
         kw['encoding'] = kwargs['encoding']
+        try:
+            foo = html.decode(kw['encoding'])
+        except UnicodeDecodeError:
+            # make it legal
+            logging.warning("Invalid %s - cleaning up" %(kw['encoding'],))
+            foo = html.decode(kw['encoding'],'ignore')
+            html = foo.encode(kw['encoding'])
+
+
     parser = lxml.html.HTMLParser(**kw)
     doc = lxml.html.document_fromstring(html, parser, base_url=url)
 
