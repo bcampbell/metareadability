@@ -7,6 +7,7 @@ import urlparse
 import lxml.html
 import lxml.etree
 
+import pats
 import fuzzydate
 import names
 import util
@@ -19,24 +20,6 @@ from pprint import pprint
 
 
 
-headline_pats = { 'classes': re.compile('entry-title|headline|title',re.I),
-        'metatags': re.compile('^headline|og:title|title|head$',re.I),
-        }
-
-pubdate_pats = { 'metatags': re.compile('date|time',re.I),
-    'classes': re.compile('published|updated|date|time|fecha',re.I),
-    'url_datefmts': (
-        re.compile(r'/(?P<year>\d{4})/(?P<month>\d{1,2})/(?P<day>\d{1,2})/',re.I),
-        re.compile(r'[^0-9](?P<year>\d{4})-(?P<month>\d{1,2})-(?P<day>\d{1,2})[^0-9]',re.I),
-        ),
-    'comment_classes': re.compile('comment|respond',re.I),
-    'pubdate_indicator': re.compile('published|posted|updated',re.I),
-    }
-
-byline_pats = { 'metatags': re.compile('',re.I),
-    'classes': re.compile('byline|author|writer|credits',re.I),
-    'indicative': re.compile(r'^(by|written by|posted by|von)\b',re.I),
-}
 
 
 def extract(html, url, **kwargs):
@@ -62,8 +45,11 @@ def extract(html, url, **kwargs):
 
     # drop comment divs - they have a nasty habit of screwing things up
     [i.drop_tree() for i in doc.cssselect('#disqus_thread')]
-    [i.drop_tree() for i in doc.cssselect('#comments')]
+    [i.drop_tree() for i in doc.cssselect('#comments, .comment')]
 
+    # nasty little hack for Johnston Publishing sites - they have adverts
+    # embedded in the headline :-(
+    [i.drop_tree() for i in doc.cssselect('.sponsorPanel')]
 
 #    html = UnicodeDammit(html, isHTML=True).markup
     headline_info = extract_headline(doc,url)
@@ -132,10 +118,10 @@ def extract_headline(doc,url):
                 score += 3
 
         # TEST: likely-looking class or id
-        if headline_pats['classes'].search(h.get('class','')):
+        if pats.headline['classes'].search(h.get('class','')):
             logging.debug("  likely class")
             score += 2
-        if headline_pats['classes'].search(h.get('id','')):
+        if pats.headline['classes'].search(h.get('id','')):
             logging.debug("  likely id")
             score += 2
 
@@ -146,7 +132,7 @@ def extract_headline(doc,url):
         # <meta name="Headline" content="Dementia checks at age 75 urged"/>
         for meta in doc.findall('.//meta'):
             n = meta.get('name', meta.get('property', ''))
-            if headline_pats['metatags'].search(n):
+            if pats.headline['metatags'].search(n):
                 meta_content = util.normalise_text(unicode(meta.get('content','')))
                 if meta_content != '':
                     if txt_norm==meta_content:
@@ -226,7 +212,7 @@ def extract_pubdate(doc, url, headline_linenum):
     # "last-modified"
 
     # check for date in slug
-    for pat in pubdate_pats['url_datefmts']:
+    for pat in pats.pubdate['url_datefmts']:
         m = pat.search(url)
         if m is not None:
             d = datetime.datetime( int(m.group('year')), int(m.group('month')), int(m.group('day')) )
@@ -238,7 +224,7 @@ def extract_pubdate(doc, url, headline_linenum):
     meta_dates = set()
     for meta in doc.findall('.//meta'):
         n = meta.get('name', meta.get('property', ''))
-        if pubdate_pats['metatags'].search(n):
+        if pats.pubdate['metatags'].search(n):
             logging.debug(" date: consider meta name='%s' content='%s'" % (n,meta.get('content','')))
             fuzzy = fuzzydate.parse_datetime(meta.get('content',''))
             if not fuzzy.empty_date():
@@ -274,17 +260,17 @@ def extract_pubdate(doc, url, headline_linenum):
                 score += 1
 
         # TEST: likely class or id?
-        if pubdate_pats['classes'].search(e.get('class','')):
+        if pats.pubdate['classes'].search(e.get('class','')):
             logging.debug("  likely class")
             score += 1
-        if pubdate_pats['classes'].search(e.get('id','')):
+        if pats.pubdate['classes'].search(e.get('id','')):
             logging.debug("  likely id")
             score += 1
         # in byline is also a good indicator
-        if byline_pats['classes'].search(e.get('class','')):
+        if pats.byline['classes'].search(e.get('class','')):
             logging.debug("  likely class")
             score += 1
-        if byline_pats['classes'].search(e.get('id','')):
+        if pats.byline['classes'].search(e.get('id','')):
             logging.debug("  likely id")
             score += 1
 
@@ -299,7 +285,7 @@ def extract_pubdate(doc, url, headline_linenum):
         in_comment = False
         foo = e.getparent()
         while foo is not None:
-            if pubdate_pats['comment_classes'].search(foo.get('class','')):
+            if pats.pubdate['comment_classes'].search(foo.get('class','')):
                 in_comment = True
                 break
             foo = foo.getparent()
@@ -308,7 +294,7 @@ def extract_pubdate(doc, url, headline_linenum):
             score += 1
 
         # TEST: indicative text? ("posted on" , "last updated" etc...)
-        if pubdate_pats['pubdate_indicator'].search(txt):
+        if pats.pubdate['pubdate_indicator'].search(txt):
             logging.debug("  text indicative of pubdate")
             score += 1
 

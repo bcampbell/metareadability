@@ -5,6 +5,7 @@ from pprint import pprint
 import util
 import fuzzydate
 import names
+import pats
 
 #'indicative': re.compile(r'^(by|written by|posted by|von)\b',re.I),
 # from
@@ -20,16 +21,6 @@ import names
 #    jobtitle_re = re.compile(r'\b(editor|associate|reporter|correspondent|corespondent|director|writer|commentator|nutritionist|presenter|journalist|cameraman|deputy|columnist)\b',re.IGNORECASE)
 
 
-_pats = {
-    'good_url': re.compile(r'[/](columnistarchive|profile|about|author[s]?|writer|i-author|authorinfo)[/]', re.I),
-    'bad_url': re.compile(r'([/](category|tag[s]?|topic[s]?|thema)[/])|(#comment[s]?$)', re.I),
-    # TODO: support xfn rel-me?
-    'good_rel': re.compile(r'\bauthor\b',re.I),
-    'bad_rel': re.compile(r'\btag\b',re.I),
-    'bad_title_attr': re.compile(r'^more on ',re.I),
-    'classes': re.compile('byline|by-line|by_line|author|writer|credits|firma',re.I),
-    'structural_cruft': re.compile(r'^(sidebar|footer)$',re.I),
-}
 
 
 def contains(container, el):
@@ -91,7 +82,6 @@ def extract(doc, url, headline_node, pubdate_node):
     return None
 
 
-indicative_pat = re.compile(r'\s*(by|text by|posted by|written by|exclusive by|reviewed by|published by|photographs by|von)[:]?\s*',re.IGNORECASE)
 
 def parse_byline(candidate,all,headline_node):
     authors = []
@@ -113,20 +103,28 @@ def parse_byline(candidate,all,headline_node):
     # TODO: this is a bit ruthless - could lose names if in same block
     parts2 = []
     for txt,el in parts:
+        is_pubdate_frag = False
+        if pats.pubdate['pubdate_indicator'].search(txt):
+            is_pubdate_frag = True
+
         t,dspan = fuzzydate.parse_date(txt)
         if dspan is not None:
             logging.debug("  +0.1 contains date")
             score += 0.1
+            is_pubdate_frag = True
+
         d,tspan = fuzzydate.parse_time(txt)
         if tspan is not None:
             logging.debug("  +0.1 contains time")
             score += 0.1
-        if dspan is None and tspan is None:
+            is_pubdate_frag = True
+
+        if not is_pubdate_frag:
             parts2.append((txt,el))
 
     # pass 2: split up text on likely separators - "and" "in" or any non alphabetic chars...
     # (capturing patterns are included in results)
-    split_pat = re.compile(r'((?:\b(?:and|in)\b)|(?:[^\w\s]+))',re.IGNORECASE|re.UNICODE)
+    split_pat = re.compile(r'((?:\b(?:and|in)\b)|(?:[^-_.\w\s]+))',re.IGNORECASE|re.UNICODE)
     parts3 = []
     for txt,el in parts2:
         fragments = split_pat.split(txt)
@@ -136,7 +134,7 @@ def parse_byline(candidate,all,headline_node):
     # pass three - split out indicatives ("by", "posted by" etc)
     parts4 = []
     for txt,el in parts3:
-        for frag in indicative_pat.split(txt):
+        for frag in pats.byline['indicative'].split(txt):
             parts4.append((frag,el))
 
     # clean up
@@ -147,10 +145,10 @@ def parse_byline(candidate,all,headline_node):
     authors,score = parse_byline_parts(parts4)
 
     # TEST: likely-looking class or id
-    if _pats['classes'].search(candidate.get('class','')):
+    if pats.byline['classes'].search(candidate.get('class','')):
         logging.debug("  +1 likely class")
         score += 1.0
-    if _pats['classes'].search(candidate.get('id','')):
+    if pats.byline['classes'].search(candidate.get('id','')):
         logging.debug("  +1 likely id")
         score += 1.0
 
@@ -198,10 +196,10 @@ def parse_byline_parts(parts):
 
         i+=1
 
-        if txt.lower() in ('-',',','|'):
+        if len(txt.lower()) <= 1:       # in ('-',',','|'):
             continue
 
-        if i==1 and indicative_pat.match(txt):
+        if i==1 and pats.byline['indicative'].match(txt):
             # starts with "by" or similar.  yay.
             logging.debug("  +1 Indicative")
             byline_score += 1.0
@@ -360,26 +358,26 @@ def eval_author_link(a):
     # TODO: TEST: email links almost certainly people?
 
     # TEST: likely url?
-    if _pats['good_url'].search(url):
+    if pats.byline['good_url'].search(url):
         score += 1.0
         logging.debug("  +1 likely-looking url '%s'" % (url,))
     # TEST: unlikely url?
-    if _pats['bad_url'].search(url):
+    if pats.byline['bad_url'].search(url):
         score -= 1.0
         logging.debug("  -1 unlikely-looking url '%s'" % (url,))
 
     # TEST: recognised rel- pattern?
-    if _pats['good_rel'].search(rel):
+    if pats.byline['good_rel'].search(rel):
         score += 2.0
         logging.debug("  +2 likely-looking rel '%s'" % (rel,))
 
     # TEST: unwanted rel- pattern?
-    if _pats['bad_rel'].search(rel):
+    if pats.byline['bad_rel'].search(rel):
         score -= 2.0
         logging.debug("  -2 unlikely-looking rel '%s'" % (rel,))
 
     # TEST: unlikely text in title attr?
-    if _pats['bad_title_attr'].search(title):
+    if pats.byline['bad_title_attr'].search(title):
         score -= 2.0
         logging.debug("  -2 unlikely-looking title attr '%s'" % (title,))
 
