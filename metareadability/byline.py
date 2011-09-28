@@ -124,7 +124,7 @@ def parse_byline(candidate,all,headline_node):
 
     # pass 2: split up text on likely separators - "and" "in" or any non alphabetic chars...
     # (capturing patterns are included in results)
-    split_pat = re.compile(r'((?:\b(?:and|in)\b)|(?:[^-_.\w\s]+))',re.IGNORECASE|re.UNICODE)
+    split_pat = re.compile(r'((?:\b(?:and|with|in)\b)|(?:[^-_.\w\s]+))',re.IGNORECASE|re.UNICODE)
     parts3 = []
     for txt,el in parts2:
         fragments = split_pat.split(txt)
@@ -223,6 +223,9 @@ def parse_byline_parts(parts):
         is_title = is_job_title(txt)
         maybe_pub = could_be_publication(txt)
 #        location_score = rate_publication(txt)
+
+        # TODO: check for "follow X on twitter", email addresses etc...
+
 
         # now decide if it's a person or not...
         person = False

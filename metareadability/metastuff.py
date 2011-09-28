@@ -47,9 +47,19 @@ def extract(html, url, **kwargs):
     [i.drop_tree() for i in doc.cssselect('#disqus_thread')]
     [i.drop_tree() for i in doc.cssselect('#comments, .comment')]
 
-    # nasty little hack for Johnston Publishing sites - they have adverts
-    # embedded in the headline :-(
+    # drop obvious structural cruft
+    [i.drop_tree() for i in doc.cssselect('#header, #footer, #sidebar')]
+
+    # nasty little hacks with no obvious general solutions:
+
+    # Johnston Publishing sites - they have adverts embedded in the headline :-(
     [i.drop_tree() for i in doc.cssselect('.sponsorPanel')]
+    
+    # www.shropshirestar.com
+    # www.expressandstar.com
+    # Have annoyingly-well marked up author links to featured articles in masthead
+    [i.drop_tree() for i in doc.cssselect('#masthead-quote')]
+
 
 #    html = UnicodeDammit(html, isHTML=True).markup
     headline_info = extract_headline(doc,url)

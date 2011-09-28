@@ -7,6 +7,8 @@ copyright
 delivery
 direct
 directory
+email
+follow
 journalist
 local
 media
@@ -24,4 +26,5 @@ site
 sport
 time
 travel
+twitter
 us
