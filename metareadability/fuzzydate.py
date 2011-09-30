@@ -74,7 +74,7 @@ date_crackers = [
     # "23rd November 2007", "22nd May 2008"
     r'(?P<day>\d{1,2})(?:st|nd|rd|th)?\s+(?P<month>\w{3,})[.,\s]+(?P<year>(\d{4})|(\d{2}))',
     # "Mar 3, 2007", "Jul 21, 08", "May 25 2010", "May 25th 2010", "February 10 2008"
-    r'(?P<month>\w{3,})[.\s]+(?P<day>\d{1,2})(?:st|nd|rd|th)?[.,\s]+(?P<year>(\d{4})|(\d{2}))',
+    r'(?P<month>\w{3,})[.,\s]+(?P<day>\d{1,2})(?:st|nd|rd|th)?[.,\s]+(?P<year>(\d{4})|(\d{2}))',
 
     # "2010-04-02"
     r'(?P<year>\d{4})-(?P<month>\d{1,2})-(?P<day>\d{1,2})',
@@ -343,6 +343,9 @@ class Tests(unittest.TestCase):
         ('May 2008', (2008,5,1,0,0,0)),
         ('Monday, May. 17, 2010', (2010,5,17,0,0,0)),   # (time.com)
         ('Thu Aug 25 10:46:55 BST 2011', (2011,8,25,9,46,55)), # (www.yorkshireeveningpost.co.uk)
+
+        #
+        ('September, 26th 2011 by Christo Hall', (2011,9,26,0,0,0)),    # (www.thenewwolf.co.uk)
         # TODO: add better timezone parsing:
     #    ("Thursday April 7, 2011 8:56 PM NZT", (2011,4,7,8,56,00)),    # nz herald
 
