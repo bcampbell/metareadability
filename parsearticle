@@ -10,12 +10,12 @@ import sys
 import socket
 from metareadability.test.urllib2helpers import CacheHandler
 from metareadability import metastuff
+from metareadability.article import Article
 
 def main():
     parser = OptionParser(usage="%prog: [options]")
     parser.add_option('-v', '--verbose', action='store_true')
     parser.add_option('-d', '--debug', action='store_true')
-    parser.add_option('-u', '--url', help="only test urls containing URL")
     parser.add_option('-c', '--cache', action='store_true', help="cache downloaded files in .cache dir")
     (options, args) = parser.parse_args()
 
@@ -43,7 +43,14 @@ def main():
         m = re.compile(r';\s*charset\s*=\s*([^;]*)', re.I).search(content_type)
         if m:
             kwargs['encoding'] = m.group(1)
-        headline,byline,pubdate = metastuff.extract(html, url, **kwargs)
+
+        art = Article(html,url,**kwargs)
+        headline = art.headline
+        byline = art.authors
+        pubdate = art.pubdate
+        content = art.content
+
+#        headline,byline,pubdate = metastuff.extract(html, url, **kwargs)
 
         row = [url,headline,byline,unicode(pubdate.date())]
         row = [f.encode('utf-8') if f is not None else u'' for f in row]

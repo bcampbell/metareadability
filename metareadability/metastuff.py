@@ -19,66 +19,6 @@ from pprint import pprint
 #from BeautifulSoup import BeautifulSoup, HTMLParseError, UnicodeDammit
 
 
-
-
-
-def extract(html, url, **kwargs):
-    """ """
-    logging.debug("*** extracting %s ***" % (url,))
-
-    kw = { 'remove_comments': True }
-    if 'encoding' in kwargs:
-        kw['encoding'] = kwargs['encoding']
-        try:
-            foo = html.decode(kw['encoding'])
-        except UnicodeDecodeError:
-            # make it legal
-            logging.warning("Invalid %s - cleaning up" %(kw['encoding'],))
-            foo = html.decode(kw['encoding'],'ignore')
-            html = foo.encode(kw['encoding'])
-
-
-    parser = lxml.html.HTMLParser(**kw)
-    doc = lxml.html.document_fromstring(html, parser, base_url=url)
-
-    [i.drop_tree() for i in util.tags(doc,'script','style')]
-
-    # drop comment divs - they have a nasty habit of screwing things up
-    [i.drop_tree() for i in doc.cssselect('#disqus_thread')]
-    [i.drop_tree() for i in doc.cssselect('#comments, .comment')]
-
-    # drop obvious structural cruft
-    [i.drop_tree() for i in doc.cssselect('#header, #footer, #sidebar')]
-
-    # nasty little hacks with no obvious general solutions:
-
-    # Johnston Publishing sites - they have adverts embedded in the headline :-(
-    [i.drop_tree() for i in doc.cssselect('.sponsorPanel')]
-    
-    # www.shropshirestar.com
-    # www.expressandstar.com
-    # Have annoyingly-well marked up author links to featured articles in masthead
-    [i.drop_tree() for i in doc.cssselect('#masthead-quote')]
-
-
-#    html = UnicodeDammit(html, isHTML=True).markup
-    headline_info = extract_headline(doc,url)
-    headline_linenum = 0
-    headline = None
-    headline_node = None
-    if headline_info is not None:
-        headline_linenum = headline_info['sourceline']
-        headline = headline_info['txt']
-        headline_node = headline_info['node']
-
-    pubdate, pubdate_node = extract_pubdate(doc,url,headline_linenum)
-
-    authors = byline.extract(doc, url, headline_node, pubdate_node)
-
-    return headline,authors,pubdate
-
-
-
 def extract_headline(doc,url):
 
     logging.debug("extracting headline")
@@ -174,7 +114,7 @@ def extract_headline(doc,url):
             candidates[txt] = {'txt':txt, 'score':score, 'sourceline':h.sourceline, 'node':h}
 
     if not candidates:
-        return None
+        return {'txt':None,'node':None, 'sourceline':None}
 
     # sort
     out = sorted(candidates.items(), key=lambda item: item[1]['score'], reverse=True)

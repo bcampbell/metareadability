@@ -1,2 +1,1 @@
-from metastuff import extract
 
