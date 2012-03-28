@@ -21,7 +21,7 @@ import pats
 #    jobtitle_re = re.compile(r'\b(editor|associate|reporter|correspondent|corespondent|director|writer|commentator|nutritionist|presenter|journalist|cameraman|deputy|columnist)\b',re.IGNORECASE)
 
 
-
+logger = logging.getLogger('metareadability.byline')
 
 def contains(container, el):
     """ return true if el node is inside container (any depth) """
@@ -53,7 +53,7 @@ def intervening(el_from, el_to, all):
 def extract(doc, url, headline_node, pubdate_node):
     """ Returns byline text """
 
-    logging.debug("EXTRACTING BYLINE")
+    logger.debug("EXTRACTING BYLINE")
 
 
     all = list(doc.iter())
@@ -74,9 +74,9 @@ def extract(doc, url, headline_node, pubdate_node):
 
     if candidates:
         results = sorted(candidates.values(), key=lambda item: item['score'], reverse=True)
-        logging.debug( " byline rankings (top 10):")
+        logger.debug( " byline rankings (top 10):")
         for r in results[:10]:
-            logging.debug("  %.3f: '%s'" % (r['score'], r['raw_byline']))
+            logger.debug("  %.3f: '%s'" % (r['score'], r['raw_byline']))
         return unicode(results[0]['raw_byline']).strip()
 
     return None
@@ -91,7 +91,7 @@ def parse_byline(candidate,all,headline_node):
     if len(txt) > 200:
         return (authors,score)
 
-    logging.debug("byline: consider <%s> '%s'"%(candidate.tag,txt[:75]))
+    logger.debug("byline: consider <%s> '%s'"%(candidate.tag,txt[:75]))
 
 #    if candidate.tag == 'a':
 #        score += eval_author_link(candidate)
@@ -109,13 +109,13 @@ def parse_byline(candidate,all,headline_node):
 
         t,dspan = fuzzydate.parse_date(txt)
         if dspan is not None:
-            logging.debug("  +0.1 contains date")
+            logger.debug("  +0.1 contains date")
             score += 0.1
             is_pubdate_frag = True
 
         d,tspan = fuzzydate.parse_time(txt)
         if tspan is not None:
-            logging.debug("  +0.1 contains time")
+            logger.debug("  +0.1 contains time")
             score += 0.1
             is_pubdate_frag = True
 
@@ -146,20 +146,20 @@ def parse_byline(candidate,all,headline_node):
 
     # TEST: likely-looking class or id
     if pats.byline['classes'].search(candidate.get('class','')):
-        logging.debug("  +1 likely class")
+        logger.debug("  +1 likely class")
         score += 1.0
     if pats.byline['classes'].search(candidate.get('id','')):
-        logging.debug("  +1 likely id")
+        logger.debug("  +1 likely id")
         score += 1.0
 
     # TEST: directly after headline?
     foo = intervening(headline_node,candidate,all)
     if foo is not None:
         if len(foo) == 0:
-            logging.debug("  +0.5 directly after headline")
+            logger.debug("  +0.5 directly after headline")
             score += 0.5
 
-    logging.debug( "  total: %.3f" % (score,))
+    logger.debug( "  total: %.3f" % (score,))
 
     return (authors, score)
 
@@ -189,7 +189,7 @@ def parse_byline_parts(parts):
         txt,el = parts[i]
 
         if len(txt.split())>=5:
-            logging.debug("  -2 excessive words")
+            logger.debug("  -2 excessive words")
 
             byline_score -= 2.0
             break
@@ -201,7 +201,7 @@ def parse_byline_parts(parts):
 
         if i==1 and pats.byline['indicative'].match(txt):
             # starts with "by" or similar.  yay.
-            logging.debug("  +1 Indicative")
+            logger.debug("  +1 Indicative")
             byline_score += 1.0
             expecting = PERSON
             continue
@@ -248,27 +248,27 @@ def parse_byline_parts(parts):
             if el is not None and el.tag=='a':
                 url = el.get('href',None)
             authors.append({'name':txt, 'score':author_score, 'url':url, 'jobtitle':None, 'publication':None, 'cruft':[]})
-            logging.debug("  person: '%s' (%.3f)"%(txt,author_score))
+            logger.debug("  person: '%s' (%.3f)"%(txt,author_score))
         else:
             if is_title:
                 if authors[-1]['jobtitle'] is None:
-                    logging.debug("   +1 job title '%s'"%(txt))
+                    logger.debug("   +1 job title '%s'"%(txt))
                     authors[-1]['jobtitle'] = txt
                     authors[-1]['score'] += 1.0
                 else:
-                    logging.debug("   -1 extra job title '%s'" % (txt))
+                    logger.debug("   -1 extra job title '%s'" % (txt))
                     authors[-1]['score'] -= 1.0
             elif maybe_pub:
                 if authors[-1]['publication'] is None:
-                    logging.debug("   +.5 publication '%s'"%(txt))
+                    logger.debug("   +.5 publication '%s'"%(txt))
                     authors[-1]['publication'] = txt
                     authors[-1]['score'] += 0.5
                 else:
-                    logging.debug("   -.5 extra publication '%s'" % (txt))
+                    logger.debug("   -.5 extra publication '%s'" % (txt))
                     authors[-1]['score'] -= 0.5
             else:
                 authors[-1]['cruft'].append(txt)
-                logging.debug("   -.2 cruft '%s'" % (txt))
+                logger.debug("   -.2 cruft '%s'" % (txt))
                 authors[-1]['score'] -= 0.2
 
         expecting = ANY
@@ -355,34 +355,34 @@ def eval_author_link(a):
     url = a.get('href','')
     rel = a.get('rel','')
     title = a.get('title','')
-#    logging.debug("  eval_author_link '%s'" % (a.text_content().strip(),))
+#    logger.debug("  eval_author_link '%s'" % (a.text_content().strip(),))
     if title:
-        logging.debug(title)
+        logger.debug(title)
     # TODO: TEST: email links almost certainly people?
 
     # TEST: likely url?
     if pats.byline['good_url'].search(url):
         score += 1.0
-        logging.debug("  +1 likely-looking url '%s'" % (url,))
+        logger.debug("  +1 likely-looking url '%s'" % (url,))
     # TEST: unlikely url?
     if pats.byline['bad_url'].search(url):
         score -= 1.0
-        logging.debug("  -1 unlikely-looking url '%s'" % (url,))
+        logger.debug("  -1 unlikely-looking url '%s'" % (url,))
 
     # TEST: recognised rel- pattern?
     if pats.byline['good_rel'].search(rel):
         score += 2.0
-        logging.debug("  +2 likely-looking rel '%s'" % (rel,))
+        logger.debug("  +2 likely-looking rel '%s'" % (rel,))
 
     # TEST: unwanted rel- pattern?
     if pats.byline['bad_rel'].search(rel):
         score -= 2.0
-        logging.debug("  -2 unlikely-looking rel '%s'" % (rel,))
+        logger.debug("  -2 unlikely-looking rel '%s'" % (rel,))
 
     # TEST: unlikely text in title attr?
     if pats.byline['bad_title_attr'].search(title):
         score -= 2.0
-        logging.debug("  -2 unlikely-looking title attr '%s'" % (title,))
+        logger.debug("  -2 unlikely-looking title attr '%s'" % (title,))
 
     return score
 

@@ -1,5 +1,5 @@
 #!/usr/bin/env python
-""" commandline tool to grab article metadata from a given url """
+""" commandline tool to parse an article at a given url """
 
 import urllib2
 import logging
@@ -9,7 +9,6 @@ import csv
 import sys
 import socket
 from metareadability.test.urllib2helpers import CacheHandler
-from metareadability import metastuff
 from metareadability.article import Article
 
 def main():
@@ -17,6 +16,7 @@ def main():
     parser.add_option('-v', '--verbose', action='store_true')
     parser.add_option('-d', '--debug', action='store_true')
     parser.add_option('-c', '--cache', action='store_true', help="cache downloaded files in .cache dir")
+    parser.add_option('-s', '--short', action='store_true', help="short output (no text content, just metadata in csv format)")
     (options, args) = parser.parse_args()
 
     log_level = logging.ERROR
@@ -25,7 +25,9 @@ def main():
     elif options.verbose:
         log_level = logging.INFO
 
-    logging.basicConfig(level=log_level, format='%(message)s')
+#    logging.basicConfig(level=log_level, format='%(message)s')
+    x = logging.getLogger("metareadability")
+    x.setLevel(log_level)
 
     if options.cache:
         logging.info("Using .cache")
@@ -34,6 +36,9 @@ def main():
         opener = urllib2.build_opener()
     urllib2.install_opener(opener)
     socket.setdefaulttimeout(5)
+
+    if options.short:
+        w = csv.writer(sys.stdout)
 
     for url in args:
         resp = urllib2.urlopen(url)
@@ -45,17 +50,26 @@ def main():
             kwargs['encoding'] = m.group(1)
 
         art = Article(html,url,**kwargs)
+
         headline = art.headline
         byline = art.authors
         pubdate = art.pubdate
         content = art.content
 
-#        headline,byline,pubdate = metastuff.extract(html, url, **kwargs)
+        if options.short:        
+            row = [url,headline,byline,unicode(pubdate.date())]
+            row = [f.encode('utf-8') if f is not None else u'' for f in row]
+            w.writerow(row)
+        else:
+            print("---")
+            print("url: %s" % (url,))
+            print("title: %s" % (headline.encode('utf-8'),))
+            print("byline: %s" % (byline.encode('utf-8'),))
+            print("pubdate: %s" % (pubdate,))
+            print("---")
+            print(content.encode('utf-8'))
 
-        row = [url,headline,byline,unicode(pubdate.date())]
-        row = [f.encode('utf-8') if f is not None else u'' for f in row]
-        w = csv.writer(sys.stdout)
-        w.writerow(row)
+
 
 if __name__ == '__main__':
     main()

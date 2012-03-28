@@ -1,18 +1,22 @@
 import logging
+import re
 
 import lxml.html
 import lxml.etree
 
 from metastuff import extract_headline,extract_pubdate
-from pluck import pluck
+import content
 import byline
 import util
+
+logger = logging.getLogger('metareadability')
+
 
 class Article(object):
     def __init__(self, html, url, **kwargs):
         """ """
 
-        logging.debug("*** extracting %s ***" % (url,))
+        logger.debug("*** extracting %s ***" % (url,))
 
         self.url = url
         self.headline_info = None
@@ -27,18 +31,19 @@ class Article(object):
                 foo = html.decode(kw['encoding'])
             except UnicodeDecodeError:
                 # make it legal
-                logging.warning("Invalid %s - cleaning up" %(kw['encoding'],))
+                logger.warning("Invalid %s - cleaning up" %(kw['encoding'],))
                 foo = html.decode(kw['encoding'],'ignore')
                 html = foo.encode(kw['encoding'])
-
 
         parser = lxml.html.HTMLParser(**kw)
 
         self.doc = lxml.html.document_fromstring(html, parser, base_url=url)
+        self.doc.make_links_absolute(url)
 
         [i.drop_tree() for i in util.tags(self.doc,'script','style')]
 
         # drop comment divs - they have a nasty habit of screwing things up
+        # TODO: reconcile with comment filtering in content extraction
         [i.drop_tree() for i in self.doc.cssselect('#disqus_thread')]
         [i.drop_tree() for i in self.doc.cssselect('#comments, .comment')]
 
@@ -55,6 +60,21 @@ class Article(object):
         # Have annoyingly-well marked up author links to featured articles in masthead
         [i.drop_tree() for i in self.doc.cssselect('#masthead-quote')]
 
+
+        #[cruft.drop_tree() for cruft in doc.cssselect('meta, img, script, style, input, textarea, ul.breadcrumb')]
+        [cruft.drop_tree() for cruft in self.doc.cssselect('img, script, style, input, textarea, ul.breadcrumb')]
+
+        cruft_classes = re.compile(r"(combx|comment|disqus|foot|menu|rss|shoutbox|sidebar|sponsor|ad-break|agegate|promo|list|photo|social|singleAd|adx|relatedarea)", re.I)
+        for div in self.doc.findall('.//div'):
+            if cruft_classes.search(div.get('class','')) or cruft_classes.search(div.get('id','')):
+                div.drop_tree()
+
+        # hack from poligraft pluck code
+        # convert <div>s that should be <p>s
+        for div in self.doc.findall('.//div'):
+            brs = len([child for child in div if child.tag=='br'])
+            if brs>2:
+                div.tag='p'
 
     @property
     def headline(self):
@@ -89,7 +109,7 @@ class Article(object):
     @property
     def content(self):
         if self.content_info is None:
-            self.content_info = pluck(self.doc)
-        # TODO: None is a valid return from pluck()
+            self.content_info = content.extract(self)
+        # TODO: None is a valid return from extract()
         return self.content_info
 

@@ -16,12 +16,12 @@ import byline
 from pprint import pprint
 
 
-#from BeautifulSoup import BeautifulSoup, HTMLParseError, UnicodeDammit
+logger = logging.getLogger('metareadability.metastuff')
 
 
 def extract_headline(doc,url):
 
-    logging.debug("extracting headline")
+    logger.debug("extracting headline")
 
     candidates = {}
 
@@ -38,7 +38,7 @@ def extract_headline(doc,url):
         if len(txt)>=500:
             continue
 
-        logging.debug(" headline: consider %s '%s'" % (h.tag,txt,))
+        logger.debug(" headline: consider %s '%s'" % (h.tag,txt,))
 
         # TODO: should run all these tests over a real corpus of articles
         # and work out proper probability-based scoring!
@@ -47,32 +47,32 @@ def extract_headline(doc,url):
         # TODO - get a proper headline-length frequency curve from
         # journalisted and score according to probability
         if len(txt)>=20 and len(txt)<60:
-            logging.debug("  len in [20,60)")
+            logger.debug("  len in [20,60)")
             score +=1
         elif len(txt)>=25 and len(txt)<40:
-            logging.debug("  len in [25,40)")
+            logger.debug("  len in [25,40)")
             score += 2
 
         if h.tag in ('h1','h2','h3','h4'):
-            logging.debug("  significant heading (%s)" % (h.tag,))
+            logger.debug("  significant heading (%s)" % (h.tag,))
             score += 2
         if h.tag in ('span','td'):
-            logging.debug("  -2 less headline-y element (%s)" % (h.tag,))
+            logger.debug("  -2 less headline-y element (%s)" % (h.tag,))
             score -= 2
 
         # TEST: does it appear in <title> text?
         title = unicode(getattr(doc.find('.//title'), 'text', ''))
         if title is not None:
             if txt_norm in util.normalise_text(title):
-                logging.debug("  appears in <title>")
+                logger.debug("  appears in <title>")
                 score += 3
 
         # TEST: likely-looking class or id
         if pats.headline['classes'].search(h.get('class','')):
-            logging.debug("  likely class")
+            logger.debug("  likely class")
             score += 2
         if pats.headline['classes'].search(h.get('id','')):
-            logging.debug("  likely id")
+            logger.debug("  likely id")
             score += 2
 
 
@@ -86,10 +86,10 @@ def extract_headline(doc,url):
                 meta_content = util.normalise_text(unicode(meta.get('content','')))
                 if meta_content != '':
                     if txt_norm==meta_content:
-                        logging.debug("  match meta")
+                        logger.debug("  match meta")
                         score += 3
                     elif txt_norm in meta_content:
-                        logging.debug("  contained by meta")
+                        logger.debug("  contained by meta")
                         score += 1
 
         # TEST: does it match slug part of url?
@@ -101,7 +101,7 @@ def extract_headline(doc,url):
 
             value = (5.0*len(matched) / len(parts)) # max 5 points
             if value > 0:
-                logging.debug("  match slug (%01f)" % (value,))
+                logger.debug("  match slug (%01f)" % (value,))
                 score += value
 
         # TODO: other possible tests
@@ -154,7 +154,7 @@ def extract_pubdate(doc, url, headline_linenum):
     """ returns date,linenum """
     candidates = {}
 
-    logging.debug("extracting pubdate")
+    logger.debug("extracting pubdate")
 
     # TODO: try some definitive meta tags first?
     # "DCSext.articleFirstPublished"
@@ -166,7 +166,7 @@ def extract_pubdate(doc, url, headline_linenum):
         m = pat.search(url)
         if m is not None:
             d = datetime.datetime( int(m.group('year')), int(m.group('month')), int(m.group('day')) )
-            logging.debug("  using %s from url" % (d,))
+            logger.debug("  using %s from url" % (d,))
             return d,None
 
 
@@ -175,7 +175,7 @@ def extract_pubdate(doc, url, headline_linenum):
     for meta in doc.findall('.//meta'):
         n = meta.get('name', meta.get('property', ''))
         if pats.pubdate['metatags'].search(n):
-            logging.debug(" date: consider meta name='%s' content='%s'" % (n,meta.get('content','')))
+            logger.debug(" date: consider meta name='%s' content='%s'" % (n,meta.get('content','')))
             fuzzy = fuzzydate.parse_datetime(meta.get('content',''))
             if not fuzzy.empty_date():
                 fuzzy = fuzzydate.fuzzydate.combine(fuzzy,fuzzydate.fuzzydate(day=1))
@@ -184,7 +184,7 @@ def extract_pubdate(doc, url, headline_linenum):
 #    if len(meta_dates)==1:
 #        # only one likely-looking <meta> entry - lets go with it
 #        d = list(meta_dates)[0]
-#        logging.debug("  using %s from <meta>" % (d,))
+#        logger.debug("  using %s from <meta>" % (d,))
 #        return d,None
 
     # start looking through whole page
@@ -200,34 +200,34 @@ def extract_pubdate(doc, url, headline_linenum):
         dt = extract_date(txt)
         if dt is None:
             continue
-        logging.debug(" date: considering %s '%s'" % (e.tag,txt))
+        logger.debug(" date: considering %s '%s'" % (e.tag,txt))
 
         # TEST: proximity to headline in html
         if headline_linenum>0 and e.sourceline>0:
             dist = e.sourceline - headline_linenum
             if dist >-10 and dist <25:
-                logging.debug("  near headline")
+                logger.debug("  near headline")
                 score += 1
 
         # TEST: likely class or id?
         if pats.pubdate['classes'].search(e.get('class','')):
-            logging.debug("  likely class")
+            logger.debug("  likely class")
             score += 1
         if pats.pubdate['classes'].search(e.get('id','')):
-            logging.debug("  likely id")
+            logger.debug("  likely id")
             score += 1
         # in byline is also a good indicator
         if pats.byline['classes'].search(e.get('class','')):
-            logging.debug("  likely class")
+            logger.debug("  likely class")
             score += 1
         if pats.byline['classes'].search(e.get('id','')):
-            logging.debug("  likely id")
+            logger.debug("  likely id")
             score += 1
 
 
         # TEST: also appears in likely <meta> tags?
         if dt.date() in meta_dates:
-            logging.debug("  appears in <meta>")
+            logger.debug("  appears in <meta>")
             score += 1
 
 
@@ -240,20 +240,20 @@ def extract_pubdate(doc, url, headline_linenum):
                 break
             foo = foo.getparent()
         if not in_comment:
-            logging.debug("  not inside likely comment")
+            logger.debug("  not inside likely comment")
             score += 1
 
         # TEST: indicative text? ("posted on" , "last updated" etc...)
         if pats.pubdate['pubdate_indicator'].search(txt):
-            logging.debug("  text indicative of pubdate")
+            logger.debug("  text indicative of pubdate")
             score += 1
 
         # TEST: date appears in url? eg "http://blah.com/blahblah-20100801-blah.html"
         if re.compile("%d[-_/.]?0?%d[-_/.]?0?%d" % (dt.year,dt.month,dt.day)).search(url):
-            logging.debug("  full date appears in url")
+            logger.debug("  full date appears in url")
             score += 2
         elif re.compile("%d[-_/.]?0?%d" % (dt.year,dt.month)).search(url):
-            logging.debug("  year and month appear in url")
+            logger.debug("  year and month appear in url")
             score += 1
 
         if dt.date() not in candidates or score>candidates[dt.date()]['score']:

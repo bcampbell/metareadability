@@ -1,41 +1,33 @@
 import sys
+import logging
 import re
 import lxml.html
-
+from lxml.etree import tounicode
 import util
 
-cruft_classes = re.compile(r"(combx|comment|disqus|foot|menu|rss|shoutbox|sidebar|sponsor|ad-break|agegate|promo|list|photo|social|singleAd|adx|relatedarea)", re.I)
+
+logger = logging.getLogger('metareadability.content')
+
+
 
 indicative1 = re.compile(r'^(article|body|entry|hentry|page|post|text|blog|story)$', re.I)
 indicative2 = re.compile(r'(entrytext|story_content|bodytext)',re.I)
 
 
-def pluck(root):
+def extract(article):
 
-    # remove undesirable elements
-    [cruft.drop_tree() for cruft in root.cssselect('meta, img, script, style, input, textarea, ul.breadcrumb')]
-
-    for div in root.cssselect('div'):
-        if cruft_classes.search(div.get('class','')) or cruft_classes.search(div.get('id','')):
-            div.drop_tree()
-
-    # convert <div>s that should be <p>s
-    for div in root.cssselect('div'):
-        brs = len([child for child in div if child.tag=='br'])
-        if brs>2:
-            div.tag='p'
-
+    doc = article.doc
 
     # try to find common names for containing div
     parents = {}
-    for div in root.cssselect('div'):
+    for div in doc.findall('.//div'):
         id = div.get('id','')
         if indicative1.search(id):
             parents[div] = 50000
         elif indicative2.search(id):
             parents[div] = 75000
 
-    for para in root.cssselect('p'):
+    for para in doc.findall('.//p'):
         points = calculate_points(para)
         parent = para.getparent()
         if parent in parents:
@@ -43,20 +35,26 @@ def pluck(root):
         else:
             parents[parent] = points
 
-    winner = max(parents, key=parents.get)
-#    for i,score in parents.iteritems():
-#        print i.get('id','-na-'), i.get('class','-na-'), score
+    candidates = parents.items()
+    candidates = sorted(candidates, key=lambda x: x[1], reverse=True)
+    logger.debug("best candidates:")
+    for el,score in candidates[:5]:
+        logger.debug( "#%s .%s: %d", el.get('id',''), el.get('class',''),score )
 
-#    print "winner: #%s .%s" % (winner.get('id',''),winner.get('class',''))
+    if len(candidates)==0:
+        return None
 
-    txt = ''
+    winner = candidates[0][0]
+
+    txt = u''
     for n in winner.findall('.//p'):
         cls = n.get('class','')
         if re.compile(r'^(summary|caption|posted|comment)$', re.I).search(cls):
             continue
+        # TODO: change to be non-destructive upon doc
         for cruft in n.findall('.//div'):
             n.drop_tree()
-        txt = txt + "<p>" + n.text_content() + "</p>\n"
+        txt = txt + tounicode(n) + "\n"
 
     #print txt
     return txt
