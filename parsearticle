@@ -19,13 +19,12 @@ def main():
     parser.add_option('-s', '--short', action='store_true', help="short output (no text content, just metadata in csv format)")
     (options, args) = parser.parse_args()
 
+    logging.basicConfig()
     log_level = logging.ERROR
     if options.debug:
         log_level = logging.DEBUG
     elif options.verbose:
         log_level = logging.INFO
-
-#    logging.basicConfig(level=log_level, format='%(message)s')
     x = logging.getLogger("metareadability")
     x.setLevel(log_level)
 
