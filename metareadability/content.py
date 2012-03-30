@@ -14,6 +14,9 @@ indicative1 = re.compile(r'^(article|body|entry|hentry|page|post|text|blog|story
 indicative2 = re.compile(r'(entrytext|story_content|bodytext)',re.I)
 
 
+
+indicative_cls = re.compile(r'\b(article|body|entry|hentry|page|post|text|blog|story)\b', re.I)
+
 def extract(article):
 
     doc = article.doc
@@ -26,6 +29,11 @@ def extract(article):
             parents[div] = 50000
         elif indicative2.search(id):
             parents[div] = 75000
+#        cls = div.get('class','')
+#        if indicative_cls.search(cls):
+#            parents[div] = 50000
+#        elif indicative2.search(cls):
+#            parents[div] = 75000
 
     for para in doc.findall('.//p'):
         points = calculate_points(para)
@@ -35,11 +43,12 @@ def extract(article):
         else:
             parents[parent] = points
 
+
     candidates = parents.items()
     candidates = sorted(candidates, key=lambda x: x[1], reverse=True)
     logger.debug("best candidates:")
     for el,score in candidates[:5]:
-        logger.debug( "#%s .%s: %d", el.get('id',''), el.get('class',''),score )
+        logger.debug( "#%s .%s: %d", el.get('id',''), el.get('class',''),score)
 
     if len(candidates)==0:
         return None
@@ -59,6 +68,14 @@ def extract(article):
     #print txt
     return txt
 
+
+def get_link_density(elem):
+    link_length = len("".join([i.text_content() or "" for i in elem.findall(".//a")]))
+    text_length = len(elem.text_content())
+    return float(link_length) / max(text_length, 1)
+
+
+
 def calculate_points(para, starting_points=0):
     # reward for being a new paragraph
     points = starting_points + 20
@@ -72,6 +89,11 @@ def calculate_points(para, starting_points=0):
 
     # deduct severely and return if clearly not content
     if re.compile(r'(comment|meta|footer|footnote|posted)', re.I).search(classes_and_ids):
+        points -= 5000
+        return points
+
+    # deduct severely and return if clearly not content
+    if re.compile(r'(recommended|top-stories|most-read|widget)', re.I).search(classes_and_ids):
         points -= 5000
         return points
 
@@ -99,6 +121,7 @@ def calculate_points(para, starting_points=0):
     points += content.count('.') * 10
     points += content.count(',') * 20
     points += content.count('<br') * 30
+
 
     return points
 
