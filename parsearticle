@@ -62,11 +62,15 @@ def main():
         else:
             print("---")
             print("url: %s" % (url,))
-            print("title: %s" % (headline.encode('utf-8'),))
-            print("byline: %s" % (byline.encode('utf-8'),))
-            print("pubdate: %s" % (pubdate,))
+            if headline:
+                print("title: %s" % (headline.encode('utf-8'),))
+            if byline:
+                print("byline: %s" % (byline.encode('utf-8'),))
+            if pubdate:
+                print("pubdate: %s" % (pubdate,))
             print("---")
-            print(content.encode('utf-8'))
+            if content:
+                print(content.encode('utf-8'))
 
 
 
