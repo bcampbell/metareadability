@@ -266,7 +266,11 @@ def parse_time(s):
                 continue
 
         if g.get('tz', None) is not None:
-            tzinfo = dateutil.tz.gettz(g['tz'])
+            tzname = g['tz']
+            # fudges - BST could be britain, brazil or bering. Assume britain.
+            remap = {'bst':'Europe/London'}
+            tzname = remap.get(tzname.lower(),tzname)
+            tzinfo = dateutil.tz.gettz(tzname)
 
 
         if hour is not None or min is not None or sec is not None:
