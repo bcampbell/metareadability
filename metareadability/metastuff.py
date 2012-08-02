@@ -6,9 +6,9 @@ import urlparse
 
 import lxml.html
 import lxml.etree
+import fuzzydate
 
 import pats
-import fuzzydate
 import names
 import util
 import byline
@@ -194,19 +194,13 @@ def extract_headline(doc,url):
 
 
 def extract_date(txt):
+    # TODO: provide default timezone based on guessed country (prob from domain name)
+    filler = fuzzydate.fuzzydate( day=1, second=0, microsecond=0)
     fd = fuzzydate.parse_datetime(txt)
-    if not fd.empty_date():
-        if fd.day is None:
-            fd.day = 1
-        if fd.empty_time():
-            return datetime.datetime(fd.year,fd.month,fd.day)
-        else:
-            if fd.second is None:
-                fd.second = 0
-            if fd.microsecond is None:
-                fd.microsecond = 0
-            return datetime.datetime(fd.year,fd.month,fd.day,fd.hour,fd.minute,fd.second,fd.microsecond,fd.tzinfo)
-    return None
+    try:
+        return fd.datetime(filler)
+    except:
+        return None
 
 
 
@@ -238,8 +232,7 @@ def extract_pubdate(doc, url, headline_linenum):
             logging.debug(" date: consider meta name='%s' content='%s'" % (n,meta.get('content','')))
             fuzzy = fuzzydate.parse_datetime(meta.get('content',''))
             if not fuzzy.empty_date():
-                fuzzy = fuzzydate.fuzzydate.combine(fuzzy,fuzzydate.fuzzydate(day=1))
-                meta_dates.add(fuzzy.date())
+                meta_dates.add(fuzzy.date(fuzzydate.fuzzydate(day=1)))
 
 #    if len(meta_dates)==1:
 #        # only one likely-looking <meta> entry - lets go with it
