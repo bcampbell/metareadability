@@ -195,7 +195,7 @@ def extract_headline(doc,url):
 
 def extract_date(txt):
     # TODO: provide default timezone based on guessed country (prob from domain name)
-    filler = fuzzydate.fuzzydate( day=1, second=0, microsecond=0)
+    filler = fuzzydate.fuzzydate( day=1, hour=0, minute=0, second=0, microsecond=0)
     fd = fuzzydate.parse_datetime(txt)
     try:
         return fd.datetime(filler)
@@ -233,6 +233,7 @@ def extract_pubdate(doc, url, headline_linenum):
             fuzzy = fuzzydate.parse_datetime(meta.get('content',''))
             if not fuzzy.empty_date():
                 meta_dates.add(fuzzy.date(fuzzydate.fuzzydate(day=1)))
+
 
 #    if len(meta_dates)==1:
 #        # only one likely-looking <meta> entry - lets go with it
