@@ -50,6 +50,7 @@ def extract(html, url, **kwargs):
     # drop obvious structural cruft
     [i.drop_tree() for i in doc.cssselect('#header, #footer, #sidebar')]
 
+    # NASTY SITE-SPECIFIC HACKS
     # nasty little hacks with no obvious general solutions:
 
     # Johnston Publishing sites - they have adverts embedded in the headline :-(
@@ -60,6 +61,8 @@ def extract(html, url, **kwargs):
     # Have annoyingly-well marked up author links to featured articles in masthead
     [i.drop_tree() for i in doc.cssselect('#masthead-quote')]
 
+    if 'independent.co.uk' in url:
+        [i.drop_tree() for i in doc.cssselect('#side, .readNextWidget')]
 
 #    html = UnicodeDammit(html, isHTML=True).markup
     headline_info = extract_headline(doc,url)
