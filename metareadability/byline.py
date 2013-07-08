@@ -59,8 +59,17 @@ def extract(doc, url, headline_node, pubdate_node):
     all = list(doc.iter())
 
     candidates = {}
+
+    bylineContainer=doc
+
+    # TODO: REMOVE UGLY UGLY HACKERY!
+    if 'independent.co.uk/voices' in url:
+        foo = doc.cssselect('.articleByline')
+        if len(foo)==1:
+            bylineContainer = foo[0]
+
     # TODO: early-out for special cases (eg hAtom author, rel="author")
-    for el in util.tags(doc, 'a','p','span','div','li','h3','h4','h5','h6','td','strong'):
+    for el in util.tags(bylineContainer, 'a','p','span','div','li','h3','h4','h5','h6','td','strong'):
 
         authors, score = parse_byline(el, all, headline_node)
 
