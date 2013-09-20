@@ -64,7 +64,7 @@ def extract(doc, url, headline_node, pubdate_node):
 
     # TODO: REMOVE UGLY UGLY HACKERY!
     if 'independent.co.uk/voices' in url:
-        foo = doc.cssselect('.articleByline')
+        foo = doc.cssselect('#top')
         if len(foo)==1:
             bylineContainer = foo[0]
 
